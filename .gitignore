@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.js
+*.d.ts
+*.js.map
+!jest.config.js
+.env
+.env.*
+!.env.example
+.DS_Store
+*.tgz
+coverage/
+.tsbuildinfo

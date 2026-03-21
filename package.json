@@ -1,0 +1,40 @@
+{
+  "name": "@trustmodel/mcp-server",
+  "version": "0.1.0",
+  "description": "TrustModel MCP Server — trust evaluation for AI agents via Model Context Protocol",
+  "type": "module",
+  "bin": {
+    "trustmodel-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "trustmodel",
+    "ai-safety",
+    "trust",
+    "guardrails",
+    "model-context-protocol"
+  ],
+  "author": "PDXLab",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "node-fetch": "^3.3.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/"
+  ]
+}
