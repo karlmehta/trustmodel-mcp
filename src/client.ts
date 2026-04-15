@@ -118,3 +118,60 @@ export async function getCredits(): Promise<unknown> {
   });
   return handleResponse(res);
 }
+
+// ── Agent Evaluation ──────────────────────────────────────────────────────────
+
+export interface AgentStep {
+  step_number: number;
+  step_type: "think" | "tool_call" | "tool_result" | "response";
+  content?: string;
+  tool_name?: string;
+  tool_args?: Record<string, unknown>;
+  tool_result?: string;
+  timestamp?: string;
+  duration_ms?: number;
+}
+
+export interface AgentTrace {
+  trace_id?: string;
+  agent_name: string;
+  user_query?: string;
+  steps: AgentStep[];
+  final_response?: string;
+  tools_used?: string[];
+  success?: boolean;
+  total_duration_ms?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export async function postEvaluateAgent(body: {
+  trace: AgentTrace;
+}): Promise<unknown> {
+  const res = await fetch(`${BASE_URL}/sdk/v1/evaluate/agent/`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  return handleResponse(res);
+}
+
+export async function postEvaluateMCPServer(body: {
+  server_name: string;
+  server_url?: string;
+  tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
+}): Promise<unknown> {
+  const res = await fetch(`${BASE_URL}/sdk/v1/evaluate/mcp-server/`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  return handleResponse(res);
+}
+
+export async function getAgentScore(agentName: string): Promise<unknown> {
+  const res = await fetch(
+    `${BASE_URL}/v1/public/score/agent/${encodeURIComponent(agentName)}/`,
+    { headers: headers() }
+  );
+  return handleResponse(res);
+}

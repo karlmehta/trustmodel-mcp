@@ -47,6 +47,27 @@ import {
   handleCredits,
 } from "./tools/credits.js";
 
+import {
+  evaluateAgentToolName,
+  evaluateAgentToolDescription,
+  evaluateAgentToolSchema,
+  handleEvaluateAgent,
+} from "./tools/evaluate-agent.js";
+
+import {
+  evaluateMCPServerToolName,
+  evaluateMCPServerToolDescription,
+  evaluateMCPServerToolSchema,
+  handleEvaluateMCPServer,
+} from "./tools/evaluate-mcp-server.js";
+
+import {
+  agentScoreToolName,
+  agentScoreToolDescription,
+  agentScoreToolSchema,
+  handleAgentScore,
+} from "./tools/agent-score.js";
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 function formatResult(data: unknown): string {
@@ -147,6 +168,60 @@ server.tool(
   async () => {
     try {
       const result = await handleCredits();
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 6 — trustmodel_evaluate_agent
+server.tool(
+  evaluateAgentToolName,
+  evaluateAgentToolDescription,
+  evaluateAgentToolSchema,
+  async (args) => {
+    try {
+      const result = await handleEvaluateAgent(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 7 — trustmodel_evaluate_mcp_server
+server.tool(
+  evaluateMCPServerToolName,
+  evaluateMCPServerToolDescription,
+  evaluateMCPServerToolSchema,
+  async (args) => {
+    try {
+      const result = await handleEvaluateMCPServer(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 8 — trustmodel_agent_score
+server.tool(
+  agentScoreToolName,
+  agentScoreToolDescription,
+  agentScoreToolSchema,
+  async (args) => {
+    try {
+      const result = await handleAgentScore(args);
       return { content: [{ type: "text", text: formatResult(result) }] };
     } catch (err) {
       return {
