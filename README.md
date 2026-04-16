@@ -16,10 +16,10 @@ Sign up at [app.trustmodel.ai](https://app.trustmodel.ai) and create an API key 
 
 ```bash
 claude mcp add trustmodel -- npx -y @trustmodel/mcp-server
-``FcŠSet your API key:
+``Fcï¿½Set your API key:
 
 ```bash
-export TRUNTMODEL_API_KEY="tm_your_key_here"
+export TRUSTMODEL_API_KEY="tm_your_key_here"
 ```
 
 #### Cursor / Windsurf

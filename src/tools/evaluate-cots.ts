@@ -18,10 +18,12 @@ export const evaluateCotsToolSchema = {
       "The decision data to evaluate — typically includes candidate info, scores, " +
         "and the AI system's recommendation."
     ),
-  categories: {
-    ...z.array(z.string()).optional(),
-    description: "Optional list of evaluation categories (e.g. ['adverse_impact', 'proxy_discrimination']).",
-  },
+  categories: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Optional list of evaluation categories (e.g. ['adverse_impact', 'proxy_discrimination'])."
+    ),
   guardrail_set_id: z
     .string()
     .optional()

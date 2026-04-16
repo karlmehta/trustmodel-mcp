@@ -53,40 +53,24 @@ async function handleResponse(res: Response): Promise<unknown> {
 
 // ── POST helpers ────────────────────────────────────────────────────────────────
 
-export async function postEvaluate(body: {
-  dimension?: string;
-  prompt: string;
-  response: string;
-  context?: Record<string, unknown>;
-  guardrail_set_id?: string;
-}): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}/sdk/v1/evaluate/`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify(body),
-  });
-  return handleResponse(res);
-}
-
-export async function postEvaluateCots(body: {
-  connection_id: string;
-  data: Record<string, unknown>;
+export interface EvaluatePublicModelBody {
+  model_identifier: string;
+  vendor_identifier: string;
+  api_key?: string;
   categories?: string[];
-  guardrail_set_id?: string;
-}): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}/sdk/v1/evaluate/cots/`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify(body),
-  });
-  return handleResponse(res);
+  model_config_name?: string;
+  application_type?: string;
+  user_personas?: string[];
+  application_description?: string;
+  domain_expert_description?: string;
+  evaluation_type?: string;
+  template_id?: string;
+  template_name?: string;
+  trigger_source?: string;
 }
 
-export async function postGuardrailsEvaluate(body: {
-  guardrail_set_id: string;
-  evaluation_data: Record<string, unknown>;
-}): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}/sdk/v1/guardrails/evaluate/`, {
+export async function postEvaluate(body: EvaluatePublicModelBody): Promise<unknown> {
+  const res = await fetch(`${BASE_URL}/sdk/v1/evaluate/`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify(body),
@@ -104,14 +88,6 @@ export async function getEvaluation(evaluationId: string): Promise<unknown> {
   return handleResponse(res);
 }
 
-export async function getCotsConnection(connectionId: string): Promise<unknown> {
-  const res = await fetch(
-    `${BASE_URL}/sdk/v1/cots/connections/${encodeURIComponent(connectionId)}/`,
-    { headers: headers() }
-  );
-  return handleResponse(res);
-}
-
 export async function getCredits(): Promise<unknown> {
   const res = await fetch(`${BASE_URL}/sdk/v1/credits/`, {
     headers: headers(),
@@ -119,35 +95,98 @@ export async function getCredits(): Promise<unknown> {
   return handleResponse(res);
 }
 
-// ── Agent Evaluation ──────────────────────────────────────────────────────────
+// ── Agentic Trace Evaluation ──────────────────────────────────────────────────
 
-export interface AgentStep {
-  step_number: number;
-  step_type: "think" | "tool_call" | "tool_result" | "response";
-  content?: string;
-  tool_name?: string;
-  tool_args?: Record<string, unknown>;
-  tool_result?: string;
-  timestamp?: string;
-  duration_ms?: number;
+export interface AgenticUploadUrlResponse {
+  signed_url: string;
+  file_path: string;
+  expires_in: number;
+  max_file_size: number;
 }
 
-export interface AgentTrace {
-  trace_id?: string;
-  agent_name: string;
-  user_query?: string;
-  steps: AgentStep[];
-  final_response?: string;
-  tools_used?: string[];
-  success?: boolean;
-  total_duration_ms?: number;
-  metadata?: Record<string, unknown>;
+export async function postAgenticUploadUrl(body: {
+  file_type: "json" | "jsonl";
+  file_size?: number;
+}): Promise<AgenticUploadUrlResponse> {
+  const res = await fetch(`${BASE_URL}/sdk/v1/agentic/upload-url/`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  const raw = (await handleResponse(res)) as {
+    signed_url?: string;
+    url?: string;
+    file_path?: string;
+    file_name?: string;
+    expires_in?: number;
+    max_file_size?: number;
+  };
+
+  // The backend returns `url` (and `file_name`); older/alternative versions use
+  // `signed_url` (and `file_path`). Normalize to the canonical names so callers
+  // never have to care which spelling came back.
+  const signed_url = raw.signed_url ?? raw.url;
+  const file_path = raw.file_path ?? raw.file_name;
+  if (!signed_url || !file_path) {
+    throw {
+      status: res.status,
+      message: "Upload-URL response missing signed URL or file path.",
+      detail: raw,
+    } satisfies TrustModelError;
+  }
+
+  return {
+    signed_url,
+    file_path,
+    expires_in: raw.expires_in ?? 0,
+    max_file_size: raw.max_file_size ?? 50 * 1024 * 1024,
+  };
+}
+
+/**
+ * PUT the trace file contents directly to a signed upload URL.
+ *
+ * The signed URL authenticates itself — we deliberately do NOT send the
+ * TrustModel Bearer token here. Content-Type must match what the server
+ * signed the URL with (see SDKAgenticTraceUploadURLView in aurora-gateway).
+ */
+export async function putToSignedUrl(
+  signedUrl: string,
+  body: string,
+  contentType: string
+): Promise<void> {
+  const res = await fetch(signedUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body,
+  });
+  if (!res.ok) {
+    let detail: unknown;
+    try {
+      detail = await res.text();
+    } catch {
+      detail = undefined;
+    }
+    const err: TrustModelError = {
+      status: res.status,
+      message: `Signed-URL upload returned ${res.status} ${res.statusText}`,
+      detail,
+    };
+    throw err;
+  }
 }
 
 export async function postEvaluateAgent(body: {
-  trace: AgentTrace;
+  file_path: string;
+  goal: string;
+  name: string;
+  agent_framework: string;
+  agent_model?: string;
+  expected_outcome?: string;
+  actual_outcome?: string;
+  goal_achieved?: boolean;
 }): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}/sdk/v1/evaluate/agent/`, {
+  const res = await fetch(`${BASE_URL}/sdk/v1/agentic/evaluate/`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify(body),
@@ -155,22 +194,9 @@ export async function postEvaluateAgent(body: {
   return handleResponse(res);
 }
 
-export async function postEvaluateMCPServer(body: {
-  server_name: string;
-  server_url?: string;
-  tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
-}): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}/sdk/v1/evaluate/mcp-server/`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify(body),
-  });
-  return handleResponse(res);
-}
-
-export async function getAgentScore(agentName: string): Promise<unknown> {
+export async function getAgenticEvaluation(id: number): Promise<unknown> {
   const res = await fetch(
-    `${BASE_URL}/v1/public/score/agent/${encodeURIComponent(agentName)}/`,
+    `${BASE_URL}/sdk/v1/agentic/evaluations/${encodeURIComponent(String(id))}/`,
     { headers: headers() }
   );
   return handleResponse(res);

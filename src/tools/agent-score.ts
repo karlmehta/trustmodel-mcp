@@ -1,22 +1,25 @@
 import { z } from "zod";
-import { getAgentScore } from "../client.js";
+import { getAgenticEvaluation } from "../client.js";
 
-export const agentScoreToolName = "trustmodel_agent_score";
+export const agentScoreToolName = "trustmodel_score_agent";
 
 export const agentScoreToolDescription =
-  "Get the cached TrustScore for a previously evaluated AI agent or MCP server. " +
-  "Returns the score, tier, and badge URL. No API key needed for public scores.";
+  "Get details (status, completion percentage, overall score, grade, per-category scores, summary) " +
+  "for an agentic trace evaluation run previously created via trustmodel_evaluate_agent.";
 
 export const agentScoreToolSchema = {
-  agent_name: z
-    .string()
+  evaluation_run_id: z
+    .union([
+      z.number().int().positive(),
+      z.string().regex(/^\d+$/, "evaluation_run_id must be a positive integer."),
+    ])
     .describe(
-      "Name of the agent or MCP server to look up (e.g., 'salesforce-einstein', 'stripe', 'github')"
+      "Integer evaluation_run_id returned by trustmodel_evaluate_agent."
     ),
 };
 
 export async function handleAgentScore(args: {
-  agent_name: string;
+  evaluation_run_id: number | string;
 }): Promise<unknown> {
-  return getAgentScore(args.agent_name);
+  return getAgenticEvaluation(Number(args.evaluation_run_id));
 }

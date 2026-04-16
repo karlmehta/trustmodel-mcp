@@ -1,37 +1,26 @@
 import { z } from "zod";
-import { getEvaluation, getCotsConnection } from "../client.js";
+import { getEvaluation } from "../client.js";
 
 export const scoreToolName = "trustmodel_score";
 
 export const scoreToolDescription =
-  "Get the current trust score for a previous evaluation or a COTS connection. " +
-  "Provide either an evaluation_id (for prompt/response evaluations) or a " +
-  "connection_id (for COTS integrations).";
+  "Get the current trust score / detail for a previous LLM evaluation created via trustmodel_evaluate. " +
+  "Takes an integer evaluation_id and returns the evaluation detail including scores.";
 
 export const scoreToolSchema = {
   evaluation_id: z
-    .string()
-    .optional()
-    .describe("The evaluation ID returned from a previous trustmodel_evaluate call."),
-  connection_id: z
-    .string()
-    .optional()
-    .describe("The COTS connection ID to retrieve the trust score for."),
+    .union([
+      z.number().int().positive(),
+      z.string().regex(/^\d+$/, "evaluation_id must be a positive integer."),
+    ])
+    .describe(
+      "Integer evaluation ID returned from a previous trustmodel_evaluate call."
+    ),
 };
 
 export async function handleScore(args: {
-  evaluation_id?: string;
-  connection_id?: string;
+  evaluation_id: number | string;
 }): Promise<unknown> {
-  if (!args.evaluation_id && !args.connection_id) {
-    throw new Error(
-      "You must provide either evaluation_id or connection_id."
-    );
-  }
-
-  if (args.evaluation_id) {
-    return getEvaluation(args.evaluation_id);
-  }
-
-  return getCotsConnection(args.connection_id!);
+  const id = String(args.evaluation_id);
+  return getEvaluation(id);
 }
