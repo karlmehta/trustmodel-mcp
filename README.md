@@ -61,7 +61,6 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `TRUSTMODEL_API_KEY` | Yes | — | Your TrustModel API key (`tm-{env}-{keyid}_{secret}`). |
-| `TRUSTMODEL_BASE_URL` | No | `https://api.trustmodel.ai` | API base URL. Override for QA (`https://api-trustmodel.pdxqa.com`) or local dev (`http://localhost:8000`). |
 | `TRUSTMODEL_TRACE_DIR` | No | `~/.trustmodel-mcp/traces/` | Where streaming trace sessions are persisted as append-only JSONL. Sessions survive server restarts via rehydrate-on-read. |
 
 ## Tools
@@ -231,60 +230,59 @@ trustmodel_score_agent({ evaluation_run_id: 42 })
 
 Below is a real-world scenario: you ask Claude Code to perform a task while instrumenting itself with TrustModel trace capture. At the end, TrustModel scores the agent across tool-use accuracy, reasoning quality, goal completion, and safety compliance — giving you a trust report before you ship the agent to production.
 
-### Scenario: code-review agent
+### Scenario: research agent
 
 Paste this prompt into Claude Code (or any MCP client with TrustModel connected):
 
 ```text
-I want you to review the files in src/tools/ of this project for code quality
-issues, while recording a TrustModel trace of your work.
+Research the pros and cons of using WebSockets vs Server-Sent Events for
+real-time notifications in a web app, while recording a TrustModel trace.
 
 Before you start, call trustmodel_trace_start with:
-  goal: "Review src/tools/ for code quality, consistency, and potential bugs"
-  name: "Code review agent"
+  goal: "Research WebSockets vs SSE for real-time notifications"
+  name: "Research agent"
   agent_framework: "claude-code"
-  agent_model: "claude-sonnet-4-5"
 
 As you work, record a trustmodel_trace_step for each action:
-  - Before reading a file → step_type: "tool_call" with tool_name and path in tool_args
-  - After reading → step_type: "tool_result" with a summary in content
-  - When you form an observation → step_type: "thought" with your reasoning
-  - When you spot an issue → step_type: "observation" with the finding
+  - When you reason about the topic → step_type: "thought"
+  - When you search or fetch info  → step_type: "tool_call" with tool_name
+  - After getting results back      → step_type: "tool_result"
+  - When you draw a conclusion      → step_type: "observation"
 
-When done, call trustmodel_trace_finalize with your summary as final_response
-and goal_achieved: true.
+When done, call trustmodel_trace_finalize with your recommendation as
+final_response and goal_achieved: true.
 
-Print the evaluation_run_id so I can check the report.
+Print the evaluation_run_id so I can check the trust report.
 ```
 
 ### What happens
 
-Claude Code executes the review while self-tracing. A typical session looks like:
+The agent researches the topic while self-tracing every reasoning step, search, and conclusion. A typical session looks like:
 
 ```text
-trustmodel_trace_start({ goal: "Review src/tools/...", name: "Code review agent", ... })
+trustmodel_trace_start({ goal: "Research WebSockets vs SSE...", name: "Research agent", ... })
 → { trace_id: "trace-9a2f71c3b84e" }
 
-trustmodel_trace_step({ step_type: "thought", content: "I'll review each tool file for consistent error handling, schema correctness, and edge cases." })
+trustmodel_trace_step({ step_type: "thought", content: "I need to compare protocol differences, browser support, scaling cost, and typical use cases." })
 → { step_number: 1 }
 
-trustmodel_trace_step({ step_type: "tool_call", tool_name: "Read", tool_args: { file_path: "src/tools/evaluate.ts" } })
+trustmodel_trace_step({ step_type: "tool_call", tool_name: "WebSearch", tool_args: { query: "websockets vs server-sent events performance comparison" } })
 → { step_number: 2 }
 
-trustmodel_trace_step({ step_type: "tool_result", content: "evaluate.ts: 109 lines, defines trustmodel_evaluate with 12 Zod fields..." })
+trustmodel_trace_step({ step_type: "tool_result", content: "Found 3 relevant articles comparing latency, connection limits, and HTTP/2 multiplexing..." })
 → { step_number: 3 }
 
-trustmodel_trace_step({ step_type: "observation", content: "evaluate.ts passes undefined optional fields to postEvaluate — consider stripping them to reduce payload." })
+trustmodel_trace_step({ step_type: "observation", content: "SSE is simpler for server-to-client push and works over HTTP/2, but WebSockets are needed for bidirectional communication." })
 → { step_number: 4 }
 
-... (reads more files, records thoughts and observations) ...
+... (more research, comparisons, trade-off analysis) ...
 
-trustmodel_trace_step({ step_type: "final_answer", content: "Reviewed 6 tool files. Found 3 minor issues: ..." })
-→ { step_number: 14 }
+trustmodel_trace_step({ step_type: "final_answer", content: "Recommendation: use SSE for one-way notifications, WebSockets only if you need client-to-server messaging." })
+→ { step_number: 10 }
 
 trustmodel_trace_finalize({
   trace_id: "trace-9a2f71c3b84e",
-  final_response: "Reviewed 6 tool files. Found 3 minor issues: ...",
+  final_response: "Recommendation: use SSE for one-way notifications...",
   goal_achieved: true
 })
 → {
