@@ -235,23 +235,27 @@ Below is a real-world scenario: you ask Claude Code to perform a task while inst
 
 Paste this prompt into Claude Code (or any MCP client with TrustModel connected):
 
-> I want you to review the files in `src/tools/` of this project for code quality issues, while recording a TrustModel trace of your work.
->
-> **Before you start**, call `trustmodel_trace_start` with:
-> - goal: "Review src/tools/ for code quality, consistency, and potential bugs"
-> - name: "Code review agent"
-> - agent_framework: "claude-code"
-> - agent_model: "claude-sonnet-4-5"
->
-> **As you work**, record a `trustmodel_trace_step` for each action:
-> - Before reading a file → `step_type: "tool_call"` with `tool_name: "Read"` and the path in `tool_args`
-> - After reading → `step_type: "tool_result"` with a summary in `content`
-> - When you form an observation → `step_type: "thought"` with your reasoning
-> - When you spot an issue → `step_type: "observation"` with the finding
->
-> **When done**, call `trustmodel_trace_finalize` with your summary as `final_response` and `goal_achieved: true`.
->
-> Print the `evaluation_run_id` so I can check the report.
+```text
+I want you to review the files in src/tools/ of this project for code quality
+issues, while recording a TrustModel trace of your work.
+
+Before you start, call trustmodel_trace_start with:
+  goal: "Review src/tools/ for code quality, consistency, and potential bugs"
+  name: "Code review agent"
+  agent_framework: "claude-code"
+  agent_model: "claude-sonnet-4-5"
+
+As you work, record a trustmodel_trace_step for each action:
+  - Before reading a file → step_type: "tool_call" with tool_name and path in tool_args
+  - After reading → step_type: "tool_result" with a summary in content
+  - When you form an observation → step_type: "thought" with your reasoning
+  - When you spot an issue → step_type: "observation" with the finding
+
+When done, call trustmodel_trace_finalize with your summary as final_response
+and goal_achieved: true.
+
+Print the evaluation_run_id so I can check the report.
+```
 
 ### What happens
 
