@@ -73,7 +73,7 @@ export async function postEvaluate(body: EvaluatePublicModelBody): Promise<unkno
   const res = await fetch(`${BASE_URL}/sdk/v1/evaluate/`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, trigger_source: body.trigger_source ?? "mcp" }),
   });
   return handleResponse(res);
 }
@@ -185,11 +185,12 @@ export async function postEvaluateAgent(body: {
   expected_outcome?: string;
   actual_outcome?: string;
   goal_achieved?: boolean;
+  trigger_source?: string;
 }): Promise<unknown> {
   const res = await fetch(`${BASE_URL}/sdk/v1/agentic/evaluate/`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, trigger_source: body.trigger_source ?? "mcp" }),
   });
   return handleResponse(res);
 }
