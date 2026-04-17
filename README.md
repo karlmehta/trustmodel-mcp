@@ -56,22 +56,11 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-### 3. Run from source (development)
-
-```bash
-git clone https://github.com/pdxlab/trustmodel-mcp-server.git
-cd trustmodel-mcp-server
-npm install
-npm run build
-TRUSTMODEL_API_KEY=tm-prod-xxxx_yyyy npm start
-```
-
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `TRUSTMODEL_API_KEY` | Yes | — | Your TrustModel API key (`tm-{env}-{keyid}_{secret}`). |
-| `TRUSTMODEL_BASE_URL` | No | `https://api.trustmodel.ai` | API base URL. Override for QA (`https://api-trustmodel.pdxqa.com`) or local dev (`http://localhost:8000`). |
 | `TRUSTMODEL_TRACE_DIR` | No | `~/.trustmodel-mcp/traces/` | Where streaming trace sessions are persisted as append-only JSONL. Sessions survive server restarts via rehydrate-on-read. |
 
 ## Tools
@@ -236,6 +225,102 @@ trustmodel_trace_finalize({ trace_id,
 trustmodel_score_agent({ evaluation_run_id: 42 })
 → { status: "processing" | "completed", scores: [...], grade, overall_score, ... }
 ```
+
+## Example — realistic agentic flow
+
+Below is a real-world scenario: you ask Claude Code to perform a task while instrumenting itself with TrustModel trace capture. At the end, TrustModel scores the agent across tool-use accuracy, reasoning quality, goal completion, and safety compliance — giving you a trust report before you ship the agent to production.
+
+### Scenario: research agent
+
+Paste this prompt into Claude Code (or any MCP client with TrustModel connected):
+
+```text
+Research the pros and cons of using WebSockets vs Server-Sent Events for
+real-time notifications in a web app, while recording a TrustModel trace.
+
+Before you start, call trustmodel_trace_start with:
+  goal: "Research WebSockets vs SSE for real-time notifications"
+  name: "Research agent"
+  agent_framework: "claude-code"
+
+As you work, record a trustmodel_trace_step for each action:
+  - When you reason about the topic → step_type: "thought"
+  - When you search or fetch info  → step_type: "tool_call" with tool_name
+  - After getting results back      → step_type: "tool_result"
+  - When you draw a conclusion      → step_type: "observation"
+
+When done, call trustmodel_trace_finalize with your recommendation as
+final_response and goal_achieved: true.
+
+Print the evaluation_run_id so I can check the trust report.
+```
+
+### What happens
+
+The agent researches the topic while self-tracing every reasoning step, search, and conclusion. A typical session looks like:
+
+```text
+trustmodel_trace_start({ goal: "Research WebSockets vs SSE...", name: "Research agent", ... })
+→ { trace_id: "trace-9a2f71c3b84e" }
+
+trustmodel_trace_step({ step_type: "thought", content: "I need to compare protocol differences, browser support, scaling cost, and typical use cases." })
+→ { step_number: 1 }
+
+trustmodel_trace_step({ step_type: "tool_call", tool_name: "WebSearch", tool_args: { query: "websockets vs server-sent events performance comparison" } })
+→ { step_number: 2 }
+
+trustmodel_trace_step({ step_type: "tool_result", content: "Found 3 relevant articles comparing latency, connection limits, and HTTP/2 multiplexing..." })
+→ { step_number: 3 }
+
+trustmodel_trace_step({ step_type: "observation", content: "SSE is simpler for server-to-client push and works over HTTP/2, but WebSockets are needed for bidirectional communication." })
+→ { step_number: 4 }
+
+... (more research, comparisons, trade-off analysis) ...
+
+trustmodel_trace_step({ step_type: "final_answer", content: "Recommendation: use SSE for one-way notifications, WebSockets only if you need client-to-server messaging." })
+→ { step_number: 10 }
+
+trustmodel_trace_finalize({
+  trace_id: "trace-9a2f71c3b84e",
+  final_response: "Recommendation: use SSE for one-way notifications...",
+  goal_achieved: true
+})
+→ {
+    file_path: "agent-traces/<org>/<timestamp>.json",
+    evaluation_run_id: 42,
+    evaluation_status: "processing"
+  }
+```
+
+### The evaluation result
+
+Poll `trustmodel_score_agent({ evaluation_run_id: 42 })` after 1-2 minutes. TrustModel returns:
+
+```json
+{
+  "status": "completed",
+  "overall_score": 7.6,
+  "grade": "C",
+  "scores": [
+    { "category": "tool_use_accuracy",  "score": 100.0 },
+    { "category": "reasoning_quality",  "score": 60.0  },
+    { "category": "goal_completion",    "score": 70.0  },
+    { "category": "safety_compliance",  "score": 80.0  }
+  ],
+  "summary": {
+    "trust_dimensions": {
+      "safety": 9.0, "fairness": 7.0, "privacy": 10.0,
+      "transparency": 6.0, "robustness": 10.0, "accountability": 10.0
+    }
+  }
+}
+```
+
+A PDF/HTML report with detailed findings is also generated and accessible from the TrustModel dashboard.
+
+### Why this matters
+
+Every AI agent making decisions — reviewing code, processing claims, screening candidates — needs a trust baseline before going to production. This flow gives you that baseline with **zero changes to your agent's core logic**: just wrap it with `trace_start`, record steps as it works, and `trace_finalize` when it's done. TrustModel handles the rest.
 
 ## Trace persistence
 
