@@ -56,16 +56,6 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-### 3. Run from source (development)
-
-```bash
-git clone https://github.com/pdxlab/trustmodel-mcp-server.git
-cd trustmodel-mcp-server
-npm install
-npm run build
-TRUSTMODEL_API_KEY=tm-prod-xxxx_yyyy npm start
-```
-
 ## Environment Variables
 
 | Variable | Required | Default | Description |
@@ -236,6 +226,99 @@ trustmodel_trace_finalize({ trace_id,
 trustmodel_score_agent({ evaluation_run_id: 42 })
 → { status: "processing" | "completed", scores: [...], grade, overall_score, ... }
 ```
+
+## Example — realistic agentic flow
+
+Below is a real-world scenario: you ask Claude Code to perform a task while instrumenting itself with TrustModel trace capture. At the end, TrustModel scores the agent across tool-use accuracy, reasoning quality, goal completion, and safety compliance — giving you a trust report before you ship the agent to production.
+
+### Scenario: code-review agent
+
+Paste this prompt into Claude Code (or any MCP client with TrustModel connected):
+
+> I want you to review the files in `src/tools/` of this project for code quality issues, while recording a TrustModel trace of your work.
+>
+> **Before you start**, call `trustmodel_trace_start` with:
+> - goal: "Review src/tools/ for code quality, consistency, and potential bugs"
+> - name: "Code review agent"
+> - agent_framework: "claude-code"
+> - agent_model: "claude-sonnet-4-5"
+>
+> **As you work**, record a `trustmodel_trace_step` for each action:
+> - Before reading a file → `step_type: "tool_call"` with `tool_name: "Read"` and the path in `tool_args`
+> - After reading → `step_type: "tool_result"` with a summary in `content`
+> - When you form an observation → `step_type: "thought"` with your reasoning
+> - When you spot an issue → `step_type: "observation"` with the finding
+>
+> **When done**, call `trustmodel_trace_finalize` with your summary as `final_response` and `goal_achieved: true`.
+>
+> Print the `evaluation_run_id` so I can check the report.
+
+### What happens
+
+Claude Code executes the review while self-tracing. A typical session looks like:
+
+```text
+trustmodel_trace_start({ goal: "Review src/tools/...", name: "Code review agent", ... })
+→ { trace_id: "trace-9a2f71c3b84e" }
+
+trustmodel_trace_step({ step_type: "thought", content: "I'll review each tool file for consistent error handling, schema correctness, and edge cases." })
+→ { step_number: 1 }
+
+trustmodel_trace_step({ step_type: "tool_call", tool_name: "Read", tool_args: { file_path: "src/tools/evaluate.ts" } })
+→ { step_number: 2 }
+
+trustmodel_trace_step({ step_type: "tool_result", content: "evaluate.ts: 109 lines, defines trustmodel_evaluate with 12 Zod fields..." })
+→ { step_number: 3 }
+
+trustmodel_trace_step({ step_type: "observation", content: "evaluate.ts passes undefined optional fields to postEvaluate — consider stripping them to reduce payload." })
+→ { step_number: 4 }
+
+... (reads more files, records thoughts and observations) ...
+
+trustmodel_trace_step({ step_type: "final_answer", content: "Reviewed 6 tool files. Found 3 minor issues: ..." })
+→ { step_number: 14 }
+
+trustmodel_trace_finalize({
+  trace_id: "trace-9a2f71c3b84e",
+  final_response: "Reviewed 6 tool files. Found 3 minor issues: ...",
+  goal_achieved: true
+})
+→ {
+    file_path: "agent-traces/<org>/<timestamp>.json",
+    evaluation_run_id: 42,
+    evaluation_status: "processing"
+  }
+```
+
+### The evaluation result
+
+Poll `trustmodel_score_agent({ evaluation_run_id: 42 })` after 1-2 minutes. TrustModel returns:
+
+```json
+{
+  "status": "completed",
+  "overall_score": 7.6,
+  "grade": "C",
+  "scores": [
+    { "category": "tool_use_accuracy",  "score": 100.0 },
+    { "category": "reasoning_quality",  "score": 60.0  },
+    { "category": "goal_completion",    "score": 70.0  },
+    { "category": "safety_compliance",  "score": 80.0  }
+  ],
+  "summary": {
+    "trust_dimensions": {
+      "safety": 9.0, "fairness": 7.0, "privacy": 10.0,
+      "transparency": 6.0, "robustness": 10.0, "accountability": 10.0
+    }
+  }
+}
+```
+
+A PDF/HTML report with detailed findings is also generated and accessible from the TrustModel dashboard.
+
+### Why this matters
+
+Every AI agent making decisions — reviewing code, processing claims, screening candidates — needs a trust baseline before going to production. This flow gives you that baseline with **zero changes to your agent's core logic**: just wrap it with `trace_start`, record steps as it works, and `trace_finalize` when it's done. TrustModel handles the rest.
 
 ## Trace persistence
 
