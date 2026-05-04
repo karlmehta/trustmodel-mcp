@@ -202,3 +202,59 @@ export async function getAgenticEvaluation(id: number): Promise<unknown> {
   );
   return handleResponse(res);
 }
+
+// ── Red Team (TRUS-722) ────────────────────────────────────────────────────────
+
+export interface RedTeamProbeFilter {
+  categories?: readonly string[];
+  severities?: readonly string[];
+  tags?: readonly string[];
+  probe_ids?: readonly string[];
+  limit?: number;
+}
+
+export interface PostRedTeamEvaluationBody {
+  target_model_id: string;
+  target_model_name?: string;
+  probe_filter?: RedTeamProbeFilter;
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export async function postRedTeamEvaluation(
+  body: PostRedTeamEvaluationBody
+): Promise<unknown> {
+  const res = await fetch(`${BASE_URL}/api/v1/red-team/evaluations/`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  return handleResponse(res);
+}
+
+export async function getRedTeamEvaluation(id: string): Promise<unknown> {
+  const res = await fetch(
+    `${BASE_URL}/api/v1/red-team/evaluations/${encodeURIComponent(id)}/`,
+    { headers: headers() }
+  );
+  return handleResponse(res);
+}
+
+export async function listRedTeamProbes(filter: {
+  category?: string;
+  severity?: string;
+  tag?: string;
+  limit?: number;
+}): Promise<unknown> {
+  const params = new URLSearchParams();
+  if (filter.category) params.set("category", filter.category);
+  if (filter.severity) params.set("severity", filter.severity);
+  if (filter.tag) params.set("tag", filter.tag);
+  if (filter.limit !== undefined) params.set("limit", String(filter.limit));
+  const qs = params.toString();
+  const res = await fetch(
+    `${BASE_URL}/api/v1/red-team/probes/${qs ? `?${qs}` : ""}`,
+    { headers: headers() }
+  );
+  return handleResponse(res);
+}
