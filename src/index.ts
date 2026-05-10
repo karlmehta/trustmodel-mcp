@@ -20,6 +20,9 @@
  *  10.  trustmodel_redteam_evaluate    — POST /api/v1/red-team/evaluations/    (TRUS-726)
  *  11.  trustmodel_redteam_results     — GET  /api/v1/red-team/evaluations/{int}/
  *  12.  trustmodel_redteam_list_probes — GET  /api/v1/red-team/probes/
+ *  13.  trustmodel_shadowai_scan       — POST /api/v1/shadow-ai/scans/          (TRUS-756)
+ *  14.  trustmodel_shadowai_results    — GET  /api/v1/shadow-ai/scans/{int}/
+ *  15.  trustmodel_shadowai_events     — GET  /api/v1/shadow-ai/scans/{int}/events/
  *
  * Inactive (kept in src/ but not registered — backend endpoints missing):
  *   - trustmodel_evaluate_cots
@@ -113,6 +116,27 @@ import {
   redteamProbesToolSchema,
   handleRedteamProbes,
 } from "./tools/redteam-probes.js";
+
+import {
+  shadowaiScanToolName,
+  shadowaiScanToolDescription,
+  shadowaiScanToolSchema,
+  handleShadowaiScan,
+} from "./tools/shadowai-scan.js";
+
+import {
+  shadowaiResultsToolName,
+  shadowaiResultsToolDescription,
+  shadowaiResultsToolSchema,
+  handleShadowaiResults,
+} from "./tools/shadowai-results.js";
+
+import {
+  shadowaiEventsToolName,
+  shadowaiEventsToolDescription,
+  shadowaiEventsToolSchema,
+  handleShadowaiEvents,
+} from "./tools/shadowai-events.js";
 
 import { startEvictionTimer } from "./trace-store.js";
 
@@ -342,6 +366,60 @@ server.tool(
   async (args) => {
     try {
       const result = await handleRedteamProbes(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 13 — trustmodel_shadowai_scan (TRUS-756)
+server.tool(
+  shadowaiScanToolName,
+  shadowaiScanToolDescription,
+  shadowaiScanToolSchema,
+  async (args) => {
+    try {
+      const result = await handleShadowaiScan(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 14 — trustmodel_shadowai_results (TRUS-756)
+server.tool(
+  shadowaiResultsToolName,
+  shadowaiResultsToolDescription,
+  shadowaiResultsToolSchema,
+  async (args) => {
+    try {
+      const result = await handleShadowaiResults(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 15 — trustmodel_shadowai_events (TRUS-756)
+server.tool(
+  shadowaiEventsToolName,
+  shadowaiEventsToolDescription,
+  shadowaiEventsToolSchema,
+  async (args) => {
+    try {
+      const result = await handleShadowaiEvents(args);
       return { content: [{ type: "text", text: formatResult(result) }] };
     } catch (err) {
       return {

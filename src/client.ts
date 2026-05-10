@@ -248,6 +248,64 @@ export async function getRedTeamEvaluation(id: string | number): Promise<unknown
   return handleResponse(res);
 }
 
+// ── Shadow AI Discovery (TRUS-756) ─────────────────────────────────────────
+
+export interface ShadowAIScanFilter {
+  github_orgs?: readonly string[];
+  github_repos?: readonly string[];
+  gcp_projects?: readonly string[];
+}
+
+export interface PostShadowAIScanBody {
+  scan_filter: ShadowAIScanFilter;
+  // Required when scan_filter includes github_orgs or github_repos.
+  // Held in process memory by the gateway worker, never persisted.
+  github_token?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export async function postShadowAIScan(
+  body: PostShadowAIScanBody
+): Promise<unknown> {
+  const res = await fetch(`${BASE_URL}/api/v1/shadow-ai/scans/`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  return handleResponse(res);
+}
+
+export async function getShadowAIScan(id: string | number): Promise<unknown> {
+  const res = await fetch(
+    `${BASE_URL}/api/v1/shadow-ai/scans/${encodeURIComponent(String(id))}/`,
+    { headers: headers() }
+  );
+  return handleResponse(res);
+}
+
+export async function listShadowAIEvents(
+  id: string | number,
+  filter: {
+    system_type?: string;
+    source?: string;
+    page?: number;
+    page_size?: number;
+  } = {}
+): Promise<unknown> {
+  const params = new URLSearchParams();
+  if (filter.system_type) params.set("system_type", filter.system_type);
+  if (filter.source) params.set("source", filter.source);
+  if (filter.page !== undefined) params.set("page", String(filter.page));
+  if (filter.page_size !== undefined) params.set("page_size", String(filter.page_size));
+  const qs = params.toString();
+  const res = await fetch(
+    `${BASE_URL}/api/v1/shadow-ai/scans/${encodeURIComponent(String(id))}/events/${qs ? `?${qs}` : ""}`,
+    { headers: headers() }
+  );
+  return handleResponse(res);
+}
+
+
 export async function listRedTeamProbes(filter: {
   category?: string;
   severity?: string;
