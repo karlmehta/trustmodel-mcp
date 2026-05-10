@@ -11,13 +11,14 @@ export const redteamResultsToolDescription =
 
 export const redteamResultsToolSchema = {
   evaluation_id: z
-    .string()
-    .uuid()
-    .describe("Evaluation UUID returned by trustmodel_redteam_evaluate."),
+    .union([z.number().int().positive(), z.string().min(1)])
+    .describe(
+      "Evaluation ID returned by trustmodel_redteam_evaluate. Integer (current) or string (legacy)."
+    ),
 };
 
 export async function handleRedteamResults(args: {
-  evaluation_id: string;
+  evaluation_id: number | string;
 }): Promise<unknown> {
   return getRedTeamEvaluation(args.evaluation_id);
 }

@@ -214,7 +214,15 @@ export interface RedTeamProbeFilter {
 }
 
 export interface PostRedTeamEvaluationBody {
-  target_model_id: string;
+  // Per-run target-model credentials. The gateway's
+  // CreateEvaluationSerializer requires all three on every request —
+  // they're forwarded to the metrics-v2 Cloud Run Job and never
+  // persisted on the run row.
+  model_name: string;
+  api_key: string;
+  api_base_url: string;
+  // Optional overrides; default to model_name when blank.
+  target_model_id?: string;
   target_model_name?: string;
   probe_filter?: RedTeamProbeFilter;
   config?: Record<string, unknown>;
@@ -232,9 +240,9 @@ export async function postRedTeamEvaluation(
   return handleResponse(res);
 }
 
-export async function getRedTeamEvaluation(id: string): Promise<unknown> {
+export async function getRedTeamEvaluation(id: string | number): Promise<unknown> {
   const res = await fetch(
-    `${BASE_URL}/api/v1/red-team/evaluations/${encodeURIComponent(id)}/`,
+    `${BASE_URL}/api/v1/red-team/evaluations/${encodeURIComponent(String(id))}/`,
     { headers: headers() }
   );
   return handleResponse(res);

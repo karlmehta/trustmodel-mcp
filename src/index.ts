@@ -18,7 +18,7 @@
  *   8.  trustmodel_trace_step          — append a step to an active trace
  *   9.  trustmodel_trace_finalize      — serialize + upload + auto-create evaluation run
  *  10.  trustmodel_redteam_evaluate    — POST /api/v1/red-team/evaluations/    (TRUS-726)
- *  11.  trustmodel_redteam_results     — GET  /api/v1/red-team/evaluations/{uuid}/
+ *  11.  trustmodel_redteam_results     — GET  /api/v1/red-team/evaluations/{int}/
  *  12.  trustmodel_redteam_list_probes — GET  /api/v1/red-team/probes/
  *
  * Inactive (kept in src/ but not registered — backend endpoints missing):
