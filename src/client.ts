@@ -203,7 +203,15 @@ export async function getAgenticEvaluation(id: number): Promise<unknown> {
   return handleResponse(res);
 }
 
-// ── Red Team (TRUS-722) ────────────────────────────────────────────────────────
+// ── Red Team + Shadow AI (TRUS-726) ────────────────────────────────────────
+//
+// The dashboard reaches Red Team and Shadow AI under /api/v1/red-team/* and
+// /api/v1/shadow-ai/*, which require OAuth2 plus an X-Organization-ID
+// header. The MCP server only carries a TrustModel API key, so we hit the
+// SDK-flavoured wrappers under /sdk/v1/ that accept
+// TrustModelAPIKeyAuthentication (aurora-gateway PR #234,
+// sdk/red_team_shadow_views.py). The API key already carries its org
+// binding, so no header juggling is required.
 
 export interface RedTeamProbeFilter {
   categories?: readonly string[];
@@ -232,7 +240,7 @@ export interface PostRedTeamEvaluationBody {
 export async function postRedTeamEvaluation(
   body: PostRedTeamEvaluationBody
 ): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}/api/v1/red-team/evaluations/`, {
+  const res = await fetch(`${BASE_URL}/sdk/v1/red-team/evaluations/`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify(body),
@@ -242,13 +250,13 @@ export async function postRedTeamEvaluation(
 
 export async function getRedTeamEvaluation(id: string | number): Promise<unknown> {
   const res = await fetch(
-    `${BASE_URL}/api/v1/red-team/evaluations/${encodeURIComponent(String(id))}/`,
+    `${BASE_URL}/sdk/v1/red-team/evaluations/${encodeURIComponent(String(id))}/`,
     { headers: headers() }
   );
   return handleResponse(res);
 }
 
-// ── Shadow AI Discovery (TRUS-756) ─────────────────────────────────────────
+// ── Shadow AI Discovery ────────────────────────────────────────────────────
 
 export interface ShadowAIScanFilter {
   github_orgs?: readonly string[];
@@ -267,7 +275,7 @@ export interface PostShadowAIScanBody {
 export async function postShadowAIScan(
   body: PostShadowAIScanBody
 ): Promise<unknown> {
-  const res = await fetch(`${BASE_URL}/api/v1/shadow-ai/scans/`, {
+  const res = await fetch(`${BASE_URL}/sdk/v1/shadow-ai/scans/`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify(body),
@@ -277,7 +285,7 @@ export async function postShadowAIScan(
 
 export async function getShadowAIScan(id: string | number): Promise<unknown> {
   const res = await fetch(
-    `${BASE_URL}/api/v1/shadow-ai/scans/${encodeURIComponent(String(id))}/`,
+    `${BASE_URL}/sdk/v1/shadow-ai/scans/${encodeURIComponent(String(id))}/`,
     { headers: headers() }
   );
   return handleResponse(res);
@@ -299,7 +307,7 @@ export async function listShadowAIEvents(
   if (filter.page_size !== undefined) params.set("page_size", String(filter.page_size));
   const qs = params.toString();
   const res = await fetch(
-    `${BASE_URL}/api/v1/shadow-ai/scans/${encodeURIComponent(String(id))}/events/${qs ? `?${qs}` : ""}`,
+    `${BASE_URL}/sdk/v1/shadow-ai/scans/${encodeURIComponent(String(id))}/events/${qs ? `?${qs}` : ""}`,
     { headers: headers() }
   );
   return handleResponse(res);
@@ -319,7 +327,7 @@ export async function listRedTeamProbes(filter: {
   if (filter.limit !== undefined) params.set("limit", String(filter.limit));
   const qs = params.toString();
   const res = await fetch(
-    `${BASE_URL}/api/v1/red-team/probes/${qs ? `?${qs}` : ""}`,
+    `${BASE_URL}/sdk/v1/red-team/probes/${qs ? `?${qs}` : ""}`,
     { headers: headers() }
   );
   return handleResponse(res);

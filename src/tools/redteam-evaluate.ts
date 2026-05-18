@@ -16,7 +16,7 @@ export const redteamEvaluateToolDescription =
   "NOTE: new runs are created in PAYMENT_PENDING status and will not " +
   "start executing until payment is processed. Check the response's " +
   "`status` field; if it is `PAYMENT_PENDING`, the caller must complete " +
-  "payment via the gateway's `/api/v1/red-team/evaluations/{id}/payment/initiate/` " +
+  "payment via the gateway's `/sdk/v1/red-team/evaluations/{id}/payment/initiate/` " +
   "and `/payment/verify/` endpoints (or the cosmic-vector dashboard) " +
   "before the worker dispatches. trustmodel_redteam_results will keep " +
   "returning the PAYMENT_PENDING run until payment is verified.";
