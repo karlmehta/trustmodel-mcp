@@ -11,7 +11,14 @@ export const shadowaiScanToolDescription =
   "Cloud Run services with AI env vars, and BigQuery ML models. Returns " +
   "the scan ID for status polling. Use trustmodel_shadowai_results to track " +
   "progress and trustmodel_shadowai_events to page through discoveries. " +
-  "github_token is required when scanning GitHub.";
+  "github_token is required when scanning GitHub. " +
+  "NOTE: new scans are created in PAYMENT_PENDING status and will not start " +
+  "executing until payment is processed. Check the response's `status` " +
+  "field; if it is `PAYMENT_PENDING`, the caller must complete payment via " +
+  "the gateway's `/api/v1/shadow-ai/scans/{id}/payment/initiate/` and " +
+  "`/payment/verify/` endpoints (or the cosmic-vector dashboard) before " +
+  "the scanner dispatches. trustmodel_shadowai_results will keep returning " +
+  "the PAYMENT_PENDING scan until payment is verified.";
 
 export const shadowaiScanToolSchema = {
   github_orgs: z

@@ -9,9 +9,17 @@ export const redteamEvaluateToolDescription =
   "api_base_url (e.g. 'https://openrouter.ai/api/v1'). Returns the " +
   "evaluation ID for status polling. Use trustmodel_redteam_results to " +
   "track progress and get the final report. Probes cover 8 attack " +
-  "categories: prompt_injection, jailbreak, pii_extraction, " +
-  "bias_elicitation, hallucination_trigger, toxicity, " +
-  "instruction_override, data_exfiltration.";
+  "categories aligned with OWASP LLM Top 10 (2025) — prompt_injection, " +
+  "jailbreak, pii_extraction, bias_elicitation, hallucination_trigger, " +
+  "toxicity, instruction_override, data_exfiltration — drawn from a " +
+  "650-probe curated library. " +
+  "NOTE: new runs are created in PAYMENT_PENDING status and will not " +
+  "start executing until payment is processed. Check the response's " +
+  "`status` field; if it is `PAYMENT_PENDING`, the caller must complete " +
+  "payment via the gateway's `/api/v1/red-team/evaluations/{id}/payment/initiate/` " +
+  "and `/payment/verify/` endpoints (or the cosmic-vector dashboard) " +
+  "before the worker dispatches. trustmodel_redteam_results will keep " +
+  "returning the PAYMENT_PENDING run until payment is verified.";
 
 const PROBE_CATEGORIES = [
   "prompt_injection",
@@ -61,9 +69,12 @@ export const redteamEvaluateToolSchema = {
     .number()
     .int()
     .min(1)
-    .max(500)
+    .max(650)
     .optional()
-    .describe("Maximum number of probes to run (default 100)."),
+    .describe(
+      "Maximum number of probes to run. Library currently holds 650 probes (TRUS-871 / OWASP LLM Top 10 2025). " +
+        "If omitted, the worker uses the gateway's default sample size."
+    ),
   metadata: z
     .record(z.unknown())
     .optional()
