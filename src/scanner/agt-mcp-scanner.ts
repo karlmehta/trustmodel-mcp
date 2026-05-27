@@ -71,10 +71,26 @@ function pickWorstSeverity(
   let worst: McpThreat["severity"] | null = null;
   for (const result of results) {
     for (const threat of result.threats) {
-      const rank = SEVERITY_RANK[threat.severity];
+      let rank = SEVERITY_RANK[threat.severity];
+      let severity = threat.severity;
+      if (rank === undefined) {
+        // AGT returned a severity outside low|medium|high|critical. Never
+        // silently drop a finding from a security scanner — fail safe by
+        // treating the unknown level as `critical` so it surfaces loudly.
+        // (stderr, not stdout: stdout is the MCP JSON-RPC channel.)
+        console.error(
+          `[agt-mcp-scanner] unknown threat severity ${JSON.stringify(
+            threat.severity,
+          )} on tool ${JSON.stringify(
+            result.tool_name,
+          )} — treating as "critical"`,
+        );
+        rank = SEVERITY_RANK.critical;
+        severity = "critical";
+      }
       if (rank > worstRank) {
         worstRank = rank;
-        worst = threat.severity;
+        worst = severity;
       }
     }
   }
