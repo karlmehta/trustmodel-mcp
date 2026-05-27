@@ -7,7 +7,7 @@
  * capabilities to any MCP-compatible AI agent (Claude Code, Cursor, Windsurf,
  * Workday agents, Eightfold AI Interviewer, etc.).
  *
- * Active tools (10):
+ * Active tools (11):
  *   1. trustmodel_evaluate                       — POST /sdk/v1/evaluate/
  *   2. trustmodel_score                          — GET  /sdk/v1/evaluations/{int}/
  *   3. trustmodel_credits                        — GET  /sdk/v1/credits/
@@ -17,7 +17,8 @@
  *   7. trustmodel_trace_start                    — open a streaming trace session (local state)
  *   8. trustmodel_trace_step                     — append a step to an active trace
  *   9. trustmodel_trace_finalize                 — serialize + upload + auto-create evaluation run
- *  10. trustmodel_shadow_discovery_scan_paths    — AGT ShadowDiscovery over local FS paths (TRUS-848)
+ *  10. trustmodel_mcp_scan_server                — AGT MCP security scan over a third-party server's tool list (TRUS-847)
+ *  11. trustmodel_shadow_discovery_scan_paths    — AGT ShadowDiscovery over local FS paths (TRUS-848)
  *
  * Inactive (kept in src/ but not registered — backend endpoints missing):
  *   - trustmodel_evaluate_cots
@@ -90,6 +91,13 @@ import {
   traceFinalizeToolSchema,
   handleTraceFinalize,
 } from "./tools/trace-finalize.js";
+
+import {
+  scanMcpServerToolName,
+  scanMcpServerToolDescription,
+  scanMcpServerToolSchema,
+  handleScanMcpServer,
+} from "./tools/scan-mcp-server.js";
 
 import {
   shadowDiscoveryScanPathsToolName,
@@ -282,7 +290,25 @@ server.tool(
   }
 );
 
-// Tool 10 — trustmodel_shadow_discovery_scan_paths (TRUS-848)
+// Tool 10 — trustmodel_mcp_scan_server (TRUS-847)
+server.tool(
+  scanMcpServerToolName,
+  scanMcpServerToolDescription,
+  scanMcpServerToolSchema,
+  async (args) => {
+    try {
+      const result = await handleScanMcpServer(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 11 — trustmodel_shadow_discovery_scan_paths (TRUS-848)
 server.tool(
   shadowDiscoveryScanPathsToolName,
   shadowDiscoveryScanPathsToolDescription,

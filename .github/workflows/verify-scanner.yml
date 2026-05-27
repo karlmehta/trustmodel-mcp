@@ -1,0 +1,27 @@
+name: verify-scanner
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the floor declared in package.json engines — the AGT SDK's
+      # @noble/*@2.2.0 transitive deps require Node >= 20.19.0 (TRUS-847).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.0"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build + run scanner acceptance script
+        run: npm run verify:scanner
