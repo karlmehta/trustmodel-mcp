@@ -202,3 +202,133 @@ export async function getAgenticEvaluation(id: number): Promise<unknown> {
   );
   return handleResponse(res);
 }
+
+// ── Red Team + Shadow AI (TRUS-726) ────────────────────────────────────────
+//
+// The dashboard reaches Red Team and Shadow AI under /api/v1/red-team/* and
+// /api/v1/shadow-ai/*, which require OAuth2 plus an X-Organization-ID
+// header. The MCP server only carries a TrustModel API key, so we hit the
+// SDK-flavoured wrappers under /sdk/v1/ that accept
+// TrustModelAPIKeyAuthentication (aurora-gateway PR #234,
+// sdk/red_team_shadow_views.py). The API key already carries its org
+// binding, so no header juggling is required.
+
+export interface RedTeamProbeFilter {
+  categories?: readonly string[];
+  severities?: readonly string[];
+  tags?: readonly string[];
+  probe_ids?: readonly string[];
+  limit?: number;
+}
+
+export interface PostRedTeamEvaluationBody {
+  // Per-run target-model credentials. The gateway's
+  // CreateEvaluationSerializer requires all three on every request —
+  // they're forwarded to the metrics-v2 Cloud Run Job and never
+  // persisted on the run row.
+  model_name: string;
+  api_key: string;
+  api_base_url: string;
+  // Optional overrides; default to model_name when blank.
+  target_model_id?: string;
+  target_model_name?: string;
+  probe_filter?: RedTeamProbeFilter;
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export async function postRedTeamEvaluation(
+  body: PostRedTeamEvaluationBody
+): Promise<unknown> {
+  const res = await fetch(`${BASE_URL}/sdk/v1/red-team/evaluations/`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  return handleResponse(res);
+}
+
+export async function getRedTeamEvaluation(id: string | number): Promise<unknown> {
+  const res = await fetch(
+    `${BASE_URL}/sdk/v1/red-team/evaluations/${encodeURIComponent(String(id))}/`,
+    { headers: headers() }
+  );
+  return handleResponse(res);
+}
+
+// ── Shadow AI Discovery ────────────────────────────────────────────────────
+
+export interface ShadowAIScanFilter {
+  github_orgs?: readonly string[];
+  github_repos?: readonly string[];
+  gcp_projects?: readonly string[];
+}
+
+export interface PostShadowAIScanBody {
+  scan_filter: ShadowAIScanFilter;
+  // Required when scan_filter includes github_orgs or github_repos.
+  // Held in process memory by the gateway worker, never persisted.
+  github_token?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export async function postShadowAIScan(
+  body: PostShadowAIScanBody
+): Promise<unknown> {
+  const res = await fetch(`${BASE_URL}/sdk/v1/shadow-ai/scans/`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  return handleResponse(res);
+}
+
+export async function getShadowAIScan(id: string | number): Promise<unknown> {
+  const res = await fetch(
+    `${BASE_URL}/sdk/v1/shadow-ai/scans/${encodeURIComponent(String(id))}/`,
+    { headers: headers() }
+  );
+  return handleResponse(res);
+}
+
+export async function listShadowAIEvents(
+  id: string | number,
+  filter: {
+    system_type?: string;
+    source?: string;
+    page?: number;
+    page_size?: number;
+  } = {}
+): Promise<unknown> {
+  const params = new URLSearchParams();
+  if (filter.system_type) params.set("system_type", filter.system_type);
+  if (filter.source) params.set("source", filter.source);
+  if (filter.page !== undefined) params.set("page", String(filter.page));
+  if (filter.page_size !== undefined) params.set("page_size", String(filter.page_size));
+  const qs = params.toString();
+  const res = await fetch(
+    `${BASE_URL}/sdk/v1/shadow-ai/scans/${encodeURIComponent(String(id))}/events/${qs ? `?${qs}` : ""}`,
+    { headers: headers() }
+  );
+  return handleResponse(res);
+}
+
+
+export async function listRedTeamProbes(filter: {
+  category?: string;
+  severity?: string;
+  tag?: string;
+  limit?: number;
+}): Promise<unknown> {
+  const params = new URLSearchParams();
+  if (filter.category) params.set("category", filter.category);
+  if (filter.severity) params.set("severity", filter.severity);
+  if (filter.tag) params.set("tag", filter.tag);
+  if (filter.limit !== undefined) params.set("limit", String(filter.limit));
+  const qs = params.toString();
+  const res = await fetch(
+    `${BASE_URL}/sdk/v1/red-team/probes/${qs ? `?${qs}` : ""}`,
+    { headers: headers() }
+  );
+  return handleResponse(res);
+}
