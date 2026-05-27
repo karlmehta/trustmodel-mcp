@@ -7,17 +7,18 @@
  * capabilities to any MCP-compatible AI agent (Claude Code, Cursor, Windsurf,
  * Workday agents, Eightfold AI Interviewer, etc.).
  *
- * Active tools (10):
- *   1. trustmodel_evaluate         — POST /sdk/v1/evaluate/
- *   2. trustmodel_score            — GET  /sdk/v1/evaluations/{int}/
- *   3. trustmodel_credits          — GET  /sdk/v1/credits/
- *   4. trustmodel_upload_trace     — POST /sdk/v1/agentic/upload-url/ + PUT signed URL (one-shot)
- *   5. trustmodel_evaluate_agent   — POST /sdk/v1/agentic/evaluate/
- *   6. trustmodel_score_agent      — GET  /sdk/v1/agentic/evaluations/{int}/
- *   7. trustmodel_trace_start      — open a streaming trace session (local state)
- *   8. trustmodel_trace_step       — append a step to an active trace
- *   9. trustmodel_trace_finalize   — serialize + upload + auto-create evaluation run
- *  10. trustmodel_mcp_scan_server  — AGT MCP security scan over a third-party server's tool list (TRUS-847)
+ * Active tools (11):
+ *   1. trustmodel_evaluate                       — POST /sdk/v1/evaluate/
+ *   2. trustmodel_score                          — GET  /sdk/v1/evaluations/{int}/
+ *   3. trustmodel_credits                        — GET  /sdk/v1/credits/
+ *   4. trustmodel_upload_trace                   — POST /sdk/v1/agentic/upload-url/ + PUT signed URL (one-shot)
+ *   5. trustmodel_evaluate_agent                 — POST /sdk/v1/agentic/evaluate/
+ *   6. trustmodel_score_agent                    — GET  /sdk/v1/agentic/evaluations/{int}/
+ *   7. trustmodel_trace_start                    — open a streaming trace session (local state)
+ *   8. trustmodel_trace_step                     — append a step to an active trace
+ *   9. trustmodel_trace_finalize                 — serialize + upload + auto-create evaluation run
+ *  10. trustmodel_mcp_scan_server                — AGT MCP security scan over a third-party server's tool list (TRUS-847)
+ *  11. trustmodel_shadow_discovery_scan_paths    — AGT ShadowDiscovery over local FS paths (TRUS-848)
  *
  * Inactive (kept in src/ but not registered — backend endpoints missing):
  *   - trustmodel_evaluate_cots
@@ -97,6 +98,13 @@ import {
   scanMcpServerToolSchema,
   handleScanMcpServer,
 } from "./tools/scan-mcp-server.js";
+
+import {
+  shadowDiscoveryScanPathsToolName,
+  shadowDiscoveryScanPathsToolDescription,
+  shadowDiscoveryScanPathsToolSchema,
+  handleShadowDiscoveryScanPaths,
+} from "./tools/shadow-discovery-scan-paths.js";
 
 import { startEvictionTimer } from "./trace-store.js";
 
@@ -290,6 +298,24 @@ server.tool(
   async (args) => {
     try {
       const result = await handleScanMcpServer(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 11 — trustmodel_shadow_discovery_scan_paths (TRUS-848)
+server.tool(
+  shadowDiscoveryScanPathsToolName,
+  shadowDiscoveryScanPathsToolDescription,
+  shadowDiscoveryScanPathsToolSchema,
+  async (args) => {
+    try {
+      const result = await handleShadowDiscoveryScanPaths(args);
       return { content: [{ type: "text", text: formatResult(result) }] };
     } catch (err) {
       return {
