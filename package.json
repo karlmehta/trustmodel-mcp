@@ -12,7 +12,8 @@
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "verify:scanner": "npm run build && node scripts/verify-scanner.mjs",
-    "verify:discovery": "npm run build && node scripts/verify-shadow-discovery.mjs"
+    "verify:discovery": "npm run build && node scripts/verify-shadow-discovery.mjs",
+    "regression:scanner": "npm run build && node regression/scanner.mjs"
   },
   "keywords": [
     "mcp",
