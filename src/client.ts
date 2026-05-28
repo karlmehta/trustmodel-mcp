@@ -35,11 +35,17 @@ export interface TrustModelError {
 
 async function handleResponse(res: Response): Promise<unknown> {
   if (!res.ok) {
-    let detail: unknown;
+    // Read the body as text exactly once — Response bodies are
+    // one-shot streams and consuming them twice throws "Body already
+    // used" (TRUS-1032). Attempt JSON parse on the text after, so a
+    // JSON-encoded error keeps its structure but an HTML 404 page (or
+    // any non-JSON body) still produces a useful detail string.
+    const rawText = await res.text().catch(() => "");
+    let detail: unknown = rawText;
     try {
-      detail = await res.json();
+      detail = JSON.parse(rawText);
     } catch {
-      detail = await res.text();
+      // Leave detail as the raw text — likely an HTML error page.
     }
     const err: TrustModelError = {
       status: res.status,
