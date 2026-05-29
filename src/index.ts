@@ -171,7 +171,24 @@ function formatResult(data: unknown): string {
 }
 
 function formatError(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err) {
+  // Error instances are the gotcha: name/message/stack are non-enumerable,
+  // so a naive JSON.stringify(new Error("foo")) returns "{}" and the
+  // caller sees an empty `<error>` envelope (TRUS-1032 — surfaced while
+  // chasing why `trustmodel_redteam_list_probes` was returning nothing).
+  // Spread own enumerable properties for any custom fields (e.g. .cause,
+  // or hand-rolled TrustModelError fields if anything ever subclasses).
+  if (err instanceof Error) {
+    return JSON.stringify(
+      {
+        name: err.name,
+        message: err.message,
+        ...Object.fromEntries(Object.entries(err)),
+      },
+      null,
+      2,
+    );
+  }
+  if (err && typeof err === "object") {
     return JSON.stringify(err, null, 2);
   }
   return String(err);
