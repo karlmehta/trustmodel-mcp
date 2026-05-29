@@ -7,7 +7,7 @@
  * capabilities to any MCP-compatible AI agent (Claude Code, Cursor, Windsurf,
  * Workday agents, Eightfold AI Interviewer, etc.).
  *
- * Active tools (17):
+ * Active tools (18):
  *   1.  trustmodel_evaluate                    — POST /sdk/v1/evaluate/
  *   2.  trustmodel_score                       — GET  /sdk/v1/evaluations/{int}/
  *   3.  trustmodel_credits                     — GET  /sdk/v1/credits/
@@ -25,6 +25,7 @@
  *  15.  trustmodel_shadowai_scan               — POST /api/v1/shadow-ai/scans/          (TRUS-756)
  *  16.  trustmodel_shadowai_results            — GET  /api/v1/shadow-ai/scans/{int}/
  *  17.  trustmodel_shadowai_events             — GET  /api/v1/shadow-ai/scans/{int}/events/
+ *  18.  trustmodel_shadow_discovery_fingerprint_keys — probe OpenAI/Anthropic API keys (TRUS-1012, 848d)
  *
  * Inactive (kept in src/ but not registered — backend endpoints missing):
  *   - trustmodel_evaluate_cots
@@ -113,6 +114,13 @@ import {
 } from "./tools/shadow-discovery-scan-paths.js";
 
 import {
+  shadowDiscoveryFingerprintKeysToolName,
+  shadowDiscoveryFingerprintKeysToolDescription,
+  shadowDiscoveryFingerprintKeysToolSchema,
+  handleShadowDiscoveryFingerprintKeys,
+} from "./tools/shadow-discovery-fingerprint-keys.js";
+
+import {
   redteamEvaluateToolName,
   redteamEvaluateToolDescription,
   redteamEvaluateToolSchema,
@@ -163,7 +171,24 @@ function formatResult(data: unknown): string {
 }
 
 function formatError(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err) {
+  // Error instances are the gotcha: name/message/stack are non-enumerable,
+  // so a naive JSON.stringify(new Error("foo")) returns "{}" and the
+  // caller sees an empty `<error>` envelope (TRUS-1032 — surfaced while
+  // chasing why `trustmodel_redteam_list_probes` was returning nothing).
+  // Spread own enumerable properties for any custom fields (e.g. .cause,
+  // or hand-rolled TrustModelError fields if anything ever subclasses).
+  if (err instanceof Error) {
+    return JSON.stringify(
+      {
+        name: err.name,
+        message: err.message,
+        ...Object.fromEntries(Object.entries(err)),
+      },
+      null,
+      2,
+    );
+  }
+  if (err && typeof err === "object") {
     return JSON.stringify(err, null, 2);
   }
   return String(err);
@@ -472,6 +497,24 @@ server.tool(
   async (args) => {
     try {
       const result = await handleShadowaiEvents(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 18 — trustmodel_shadow_discovery_fingerprint_keys (TRUS-1012, 848d)
+server.tool(
+  shadowDiscoveryFingerprintKeysToolName,
+  shadowDiscoveryFingerprintKeysToolDescription,
+  shadowDiscoveryFingerprintKeysToolSchema,
+  async (args) => {
+    try {
+      const result = await handleShadowDiscoveryFingerprintKeys(args);
       return { content: [{ type: "text", text: formatResult(result) }] };
     } catch (err) {
       return {

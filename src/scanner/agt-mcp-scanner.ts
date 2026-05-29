@@ -26,6 +26,8 @@ import {
   type McpToolDefinition,
 } from "@microsoft/agent-governance-sdk";
 
+import { supplementaryThreatsFor } from "./supplementary-detection.js";
+
 /** Status surfaced to callers — drives block/allow decisions downstream. */
 export type ScanStatus = "ok" | "warning" | "blocked";
 
@@ -112,20 +114,46 @@ export function scanMcpServer(input: {
 }): ScanReport {
   const scanner = new McpSecurityScanner();
   const results = scanner.scanAll(input.tools);
-  const worst = pickWorstSeverity(results);
+
+  // Merge AGT's findings with our supplementary detection (TRUS-1030):
+  // hidden HTML/markdown comments + typosquat tool names. AGT's
+  // McpScanResult is positionally aligned with the input tools so we
+  // can pair them by index.
+  const augmented: McpScanResult[] = results.map((r, i) => {
+    const extra = supplementaryThreatsFor(input.tools[i]);
+    if (extra.length === 0) return r;
+    const threats = [...r.threats, ...extra];
+    const supplementaryWorstRank = extra.reduce(
+      (acc, t) => Math.max(acc, SEVERITY_RANK[t.severity] ?? -1),
+      -1,
+    );
+    // Once we've added a medium-or-worse supplementary threat, the tool
+    // is no longer safe regardless of what AGT said. Risk score becomes
+    // the max of AGT's score and a severity-derived floor so callers
+    // can sort by it.
+    const supplementaryRiskFloor =
+      supplementaryWorstRank >= SEVERITY_RANK.medium
+        ? 60 + supplementaryWorstRank * 10
+        : 0;
+    const safe = r.safe && supplementaryWorstRank < SEVERITY_RANK.medium;
+    const risk_score = Math.max(r.risk_score, supplementaryRiskFloor);
+    return { ...r, threats, safe, risk_score };
+  });
+
+  const worst = pickWorstSeverity(augmented);
 
   return {
     server_name: input.server_name,
     server_url: input.server_url,
     status: rollupStatus(worst),
     worst_severity: worst,
-    total_tools: results.length,
-    // An unsafe result is one the upstream scanner refused to mark `safe`.
-    // We treat any unsafe tool as "blocked" at the per-tool level even if
-    // the overall status is only a warning — the caller can decide which
-    // tools to filter out.
-    blocked_tools: results.filter((r) => !r.safe).length,
-    findings: results.map((r) => ({
+    total_tools: augmented.length,
+    // An unsafe result is one the upstream scanner (or our supplementary
+    // detection) refused to mark `safe`. Any unsafe tool counts as
+    // "blocked" at the per-tool level even if the overall status is only
+    // a warning — the caller decides which tools to filter out.
+    blocked_tools: augmented.filter((r) => !r.safe).length,
+    findings: augmented.map((r) => ({
       tool_name: r.tool_name,
       risk_score: r.risk_score,
       safe: r.safe,

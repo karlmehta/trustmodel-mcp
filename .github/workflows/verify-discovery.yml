@@ -1,0 +1,32 @@
+name: verify-discovery
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the AGT SDK floor — @microsoft/agent-governance-sdk's
+      # @noble/*@2.2.0 transitive deps require Node >= 20.19.0 (TRUS-847).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.0"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Both Shadow Discovery acceptance scripts. fingerprint stubs fetch,
+      # scan-paths uses temp fixtures — neither hits the network.
+      - name: Verify shadow-discovery scan-paths
+        run: npm run verify:discovery
+
+      - name: Verify API-key fingerprint scan
+        run: npm run verify:fingerprint
