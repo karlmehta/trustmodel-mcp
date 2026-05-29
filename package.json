@@ -15,7 +15,8 @@
     "verify:discovery": "npm run build && node scripts/verify-shadow-discovery.mjs",
     "verify:fingerprint": "npm run build && node scripts/verify-fingerprint.mjs",
     "verify:error-envelope": "npm run build && node scripts/verify-error-envelope.mjs",
-    "regression:scanner": "npm run build && node regression/scanner.mjs"
+    "regression:scanner": "npm run build && node regression/scanner.mjs",
+    "smoke": "npm run build && node e2e/smoke.mjs"
   },
   "keywords": [
     "mcp",

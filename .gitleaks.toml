@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "E2E smoke harness intentionally uses stub credentials shaped like real ones to satisfy the gateway's validation regex (e.g. aws_access_key_id must match `AKIA[A-Z0-9]{16}`). These files only ever talk to the QA gateway and never carry production secrets."
+paths = [
+  '''e2e/steps/.*''',
+]
