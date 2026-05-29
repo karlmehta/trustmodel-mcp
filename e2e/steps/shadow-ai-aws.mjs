@@ -21,7 +21,7 @@ const STUB_AWS_ACCOUNT = "123456789012";
 // AWS access-key IDs are `AKIA` + 16 chars of [A-Z0-9] — exactly 20 chars
 // total. The gateway serializer enforces this regex, so the stub has to
 // satisfy it even though the worker would later reject the value.
-const STUB_ACCESS_KEY_ID = "AKIAEXAMPLESMOKE1234";
+const STUB_ACCESS_KEY_ID = "AKIAEXAMPLESMOKE1234"; // gitleaks:allow — stub value for E2E smoke, not a real key
 // gitleaks:allow — stub value for E2E smoke, not a real secret
 const STUB_SECRET_ACCESS_KEY = "x".repeat(40);
 
