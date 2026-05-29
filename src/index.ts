@@ -7,7 +7,7 @@
  * capabilities to any MCP-compatible AI agent (Claude Code, Cursor, Windsurf,
  * Workday agents, Eightfold AI Interviewer, etc.).
  *
- * Active tools (17):
+ * Active tools (18):
  *   1.  trustmodel_evaluate                    — POST /sdk/v1/evaluate/
  *   2.  trustmodel_score                       — GET  /sdk/v1/evaluations/{int}/
  *   3.  trustmodel_credits                     — GET  /sdk/v1/credits/
@@ -25,6 +25,7 @@
  *  15.  trustmodel_shadowai_scan               — POST /api/v1/shadow-ai/scans/          (TRUS-756)
  *  16.  trustmodel_shadowai_results            — GET  /api/v1/shadow-ai/scans/{int}/
  *  17.  trustmodel_shadowai_events             — GET  /api/v1/shadow-ai/scans/{int}/events/
+ *  18.  trustmodel_shadow_discovery_fingerprint_keys — probe OpenAI/Anthropic API keys (TRUS-1012, 848d)
  *
  * Inactive (kept in src/ but not registered — backend endpoints missing):
  *   - trustmodel_evaluate_cots
@@ -111,6 +112,13 @@ import {
   shadowDiscoveryScanPathsToolSchema,
   handleShadowDiscoveryScanPaths,
 } from "./tools/shadow-discovery-scan-paths.js";
+
+import {
+  shadowDiscoveryFingerprintKeysToolName,
+  shadowDiscoveryFingerprintKeysToolDescription,
+  shadowDiscoveryFingerprintKeysToolSchema,
+  handleShadowDiscoveryFingerprintKeys,
+} from "./tools/shadow-discovery-fingerprint-keys.js";
 
 import {
   redteamEvaluateToolName,
@@ -489,6 +497,24 @@ server.tool(
   async (args) => {
     try {
       const result = await handleShadowaiEvents(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 18 — trustmodel_shadow_discovery_fingerprint_keys (TRUS-1012, 848d)
+server.tool(
+  shadowDiscoveryFingerprintKeysToolName,
+  shadowDiscoveryFingerprintKeysToolDescription,
+  shadowDiscoveryFingerprintKeysToolSchema,
+  async (args) => {
+    try {
+      const result = await handleShadowDiscoveryFingerprintKeys(args);
       return { content: [{ type: "text", text: formatResult(result) }] };
     } catch (err) {
       return {
