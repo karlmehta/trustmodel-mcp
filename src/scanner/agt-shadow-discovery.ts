@@ -75,6 +75,67 @@ const RISK_RANK: Record<DiscoveryRiskLevel, number> = {
   critical: 4,
 };
 
+// Score floors used when we downgrade a level — AGT itself doesn't ship
+// public scoring constants so we pick conservative midpoints. Only
+// applied when the cap actually lowers the level.
+const SCORE_FOR_LEVEL: Record<DiscoveryRiskLevel, number> = {
+  info: 0,
+  low: 25,
+  medium: 50,
+  high: 75,
+  critical: 90,
+};
+
+/**
+ * Cap a detection's risk level by its detection confidence (TRUS-1031).
+ *
+ * AGT scores every source-pattern hit at the same level/score regardless
+ * of confidence, so a substring grep for `"langchain"` in an env-var
+ * listing comes back at `critical/85` alongside a real `agentmesh.yaml`
+ * config_file hit. That floods the inventory with false positives.
+ *
+ * Bands match how AGT emits confidence today:
+ *   - source_pattern        → ~0.65   → cap at `medium`
+ *   - manual / mixed bases  → 0.70–0.85 → cap at `high`
+ *   - config_file / container_reference → ≥0.85 → unchanged
+ *
+ * When capped, a `capped_by_confidence:<score>` factor is appended so
+ * triage reviewers can see *why* the level was lowered. The function is
+ * pure — returns a new record, never mutates AGT's output.
+ */
+function capRiskByConfidence(record: ShadowAgentRecord): ShadowAgentRecord {
+  const confidence = record.agent.confidence;
+  let cap: DiscoveryRiskLevel;
+  if (confidence < 0.7) {
+    cap = "medium";
+  } else if (confidence < 0.85) {
+    cap = "high";
+  } else {
+    return record; // high-confidence hits keep AGT's level + score
+  }
+
+  const currentRank = RISK_RANK[record.risk.level] ?? RISK_RANK.info;
+  const capRank = RISK_RANK[cap];
+  if (currentRank <= capRank) {
+    return record; // already at or below the cap
+  }
+
+  return {
+    ...record,
+    risk: {
+      ...record.risk,
+      level: cap,
+      // Take the lower of AGT's score and the capped floor so we never
+      // raise a score, only lower it.
+      score: Math.min(record.risk.score, SCORE_FOR_LEVEL[cap]),
+      factors: [
+        ...record.risk.factors,
+        `capped_by_confidence:${confidence.toFixed(2)}`,
+      ],
+    },
+  };
+}
+
 function rollupRisk(
   shadows: ShadowAgentRecord[],
 ): { worst: DiscoveryRiskLevel | null; status: DiscoveryRiskLevel } {
@@ -165,14 +226,23 @@ export function scanPaths(input: {
     maxFileReadBytes: input.maxFileReadBytes,
   };
   const result = discovery.scan(options);
-  const { worst, status } = rollupRisk(result.shadowAgents);
+
+  // TRUS-1031: cap each shadow agent's risk by its detection confidence
+  // *before* the rollup. Source-pattern hits at confidence 0.65 came
+  // back from AGT as `critical/85`, flooding the inventory. We surface
+  // AGT's full output untouched in `result.agents` (the directory still
+  // sees every detection); the capped `shadowAgents` is what drives
+  // status + risk roll-up + alerting downstream.
+  const cappedShadows = result.shadowAgents.map(capRiskByConfidence);
+  const scan: DiscoveryScanResult = { ...result, shadowAgents: cappedShadows };
+  const { worst, status } = rollupRisk(cappedShadows);
 
   return {
     status,
     worstRiskLevel: worst,
-    shadowCount: result.shadowAgents.length,
+    shadowCount: cappedShadows.length,
     agentCount: result.agents.length,
-    scan: result,
+    scan,
     emittedAt: new Date().toISOString(),
     // Hard-coded to match the npm pin in package.json. Bumping the
     // dep is a deliberate decision — this lets reviewers diff the

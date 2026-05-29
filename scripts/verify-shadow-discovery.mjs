@@ -145,6 +145,44 @@ try {
     `got "${badReport.worstRiskLevel}"`,
   );
 
+  // TRUS-1031: confidence-cap. The bad fixture seeds three evidence
+  // bases; the source_pattern hit (src/agent.py) comes back from AGT
+  // at confidence 0.65 and used to roll up as critical/85. After the
+  // cap, that specific record should be `medium` and carry a
+  // `capped_by_confidence` factor; the config_file + container_reference
+  // hits (≥0.85 confidence) should still be `critical`.
+  const sourcePatternShadow = badReport.scan.shadowAgents.find((s) =>
+    s.agent.evidence.some((e) => e.basis === "source_pattern"),
+  );
+  const configFileShadow = badReport.scan.shadowAgents.find((s) =>
+    s.agent.evidence.some((e) => e.basis === "config_file"),
+  );
+  check(
+    "confidence cap: source_pattern hit downgraded to medium",
+    sourcePatternShadow?.risk.level === "medium",
+    `got "${sourcePatternShadow?.risk.level}" (confidence=${sourcePatternShadow?.agent.confidence})`,
+  );
+  check(
+    "confidence cap: factor records the downgrade",
+    !!sourcePatternShadow?.risk.factors.some((f) =>
+      f.startsWith("capped_by_confidence:"),
+    ),
+    `factors=${JSON.stringify(sourcePatternShadow?.risk.factors)}`,
+  );
+  check(
+    "confidence cap: high-confidence config_file hit kept at high or critical",
+    configFileShadow?.risk.level === "high"
+      || configFileShadow?.risk.level === "critical",
+    `got "${configFileShadow?.risk.level}" (confidence=${configFileShadow?.agent.confidence})`,
+  );
+  check(
+    "confidence cap: no cap factor on high-confidence hit",
+    !configFileShadow?.risk.factors.some((f) =>
+      f.startsWith("capped_by_confidence:"),
+    ),
+    `factors=${JSON.stringify(configFileShadow?.risk.factors)}`,
+  );
+
   // Sanity-check the feature-flag gate while we're here.
   delete process.env.TRUSTMODEL_AGT_DISCOVERY_ENABLED;
   const flaggedReport = scanPaths({ paths: [badDir] });
