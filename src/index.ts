@@ -215,10 +215,48 @@ function formatError(err: unknown): string {
 
 // ── Server setup ───────────────────────────────────────────────────────────────
 
-const server = new McpServer({
+const mcpServer = new McpServer({
   name: "trustmodel",
   version: "0.1.0",
 });
+
+/**
+ * Tool profiles (TRUS-1085) — keep the DEFAULT tool surface within the 5–8
+ * best-practice budget so agents reliably pick the right tool. The default
+ * profile exposes only the daily-driver tools; advanced tools (cloud batch
+ * eval, credits, agent-trace upload/eval, MCP scan, shadow discovery, red
+ * team, shadow AI) are opt-in via TRUSTMODEL_PROFILE=security|advanced|all
+ * or TRUSTMODEL_ADVANCED_TOOLS=true.
+ */
+const DEFAULT_TOOLS = new Set<string>([
+  evalLocalToolName, // local-first evaluate (no key)
+  scoreToolName,
+  traceStartToolName,
+  traceStepToolName,
+  traceFinalizeToolName,
+  governToolName, // no key
+]);
+
+const TRUSTMODEL_PROFILE = (process.env.TRUSTMODEL_PROFILE ?? "default").toLowerCase();
+const ADVANCED_ENABLED =
+  process.env.TRUSTMODEL_ADVANCED_TOOLS === "true" ||
+  ["security", "advanced", "all", "full"].includes(TRUSTMODEL_PROFILE);
+
+// Profile-aware registration shim. Advanced tools are skipped (never advertised
+// in tools/list) unless the profile/flag enables them; default-profile tools
+// always register. Tool implementations are unchanged — this only gates which
+// tools are exposed. All 20 server.tool(...) calls below go through this.
+const server = {
+  tool(
+    name: string,
+    description: string,
+    schema: Record<string, unknown>,
+    handler: (...args: any[]) => any,
+  ) {
+    if (!DEFAULT_TOOLS.has(name) && !ADVANCED_ENABLED) return;
+    return (mcpServer.tool as any)(name, description, schema, handler);
+  },
+};
 
 // Tool 1 — trustmodel_evaluate
 server.tool(
@@ -585,8 +623,11 @@ server.tool(
 async function main() {
   startEvictionTimer();
   const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("TrustModel MCP Server running on stdio");
+  await mcpServer.connect(transport);
+  const profileLabel = ADVANCED_ENABLED
+    ? `${TRUSTMODEL_PROFILE === "default" ? "advanced" : TRUSTMODEL_PROFILE} (all tools)`
+    : "default (daily-driver tools only; set TRUSTMODEL_PROFILE=security for all)";
+  console.error(`TrustModel MCP Server running on stdio — profile: ${profileLabel}`);
 }
 
 main().catch((err) => {
