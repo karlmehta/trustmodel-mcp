@@ -62,10 +62,34 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 |---|---|---|---|
 | `TRUSTMODEL_API_KEY` | Yes | — | Your TrustModel API key (`tm-{env}-{keyid}_{secret}`). |
 | `TRUSTMODEL_TRACE_DIR` | No | `~/.trustmodel-mcp/traces/` | Where streaming trace sessions are persisted as append-only JSONL. Sessions survive server restarts via rehydrate-on-read. |
+| `TRUSTMODEL_AGT_DISCOVERY_ENABLED` | No | `false` | Enables the filesystem-touching Shadow Discovery tools (`trustmodel_shadow_discovery_*`). When unset, those tools return a skip report. |
 
 ## Tools
 
-The server exposes **9 tools** across two areas: classic model evaluation and agentic trace evaluation.
+The server exposes **18 tools** across six areas. Use this table to pick the right one; full input/output docs follow below.
+
+| Tool | Group | When to use |
+|---|---|---|
+| `trustmodel_evaluate` | Eval | Kick off a batch trust evaluation of a model (safety, bias, accuracy, …); returns an `id` to poll. |
+| `trustmodel_score` | Eval | Fetch status/scores for an evaluation created with `trustmodel_evaluate`. |
+| `trustmodel_credits` | Eval | Check remaining API credit balance. |
+| `trustmodel_trace_start` | Agentic Trace | Open a streaming trace session before an agent starts working. |
+| `trustmodel_trace_step` | Agentic Trace | Record one reasoning step, tool call, tool result, or response as the agent runs. |
+| `trustmodel_trace_finalize` | Agentic Trace | Close the session, upload the trace, and auto-create the agent evaluation run. |
+| `trustmodel_upload_trace` | Agentic Trace | One-shot: PUT a pre-assembled trace JSON when you didn't stream it. |
+| `trustmodel_evaluate_agent` | Agentic Trace | Create an agentic evaluation run against an already-uploaded trace `file_path`. |
+| `trustmodel_score_agent` | Agentic Trace | Fetch scores/grade for an agentic evaluation run. |
+| `trustmodel_mcp_scan_server` | Security | Security-scan a third-party MCP server's tool list for risky/abusable tools. |
+| `trustmodel_shadow_discovery_scan_paths` | Shadow Discovery | Scan local filesystem paths for unregistered/shadow AI usage. |
+| `trustmodel_shadow_discovery_fingerprint_keys` | Shadow Discovery | Detect & fingerprint OpenAI/Anthropic API keys found on disk. |
+| `trustmodel_redteam_evaluate` | Red Team | Launch an adversarial red-team evaluation against a model/endpoint. |
+| `trustmodel_redteam_results` | Red Team | Fetch results for a red-team evaluation. |
+| `trustmodel_redteam_list_probes` | Red Team | List available red-team probes/attack categories. |
+| `trustmodel_shadowai_scan` | Shadow AI | Start a Shadow AI scan to find unregistered AI use across an environment. |
+| `trustmodel_shadowai_results` | Shadow AI | Fetch results for a Shadow AI scan. |
+| `trustmodel_shadowai_events` | Shadow AI | Stream the detection events for a Shadow AI scan. |
+
+> **Shadow Discovery** tools (`trustmodel_shadow_discovery_*`) touch the local filesystem. They are always listed, but return a skip report unless `TRUSTMODEL_AGT_DISCOVERY_ENABLED=true` is set on the server.
 
 ### Classic evaluation
 
@@ -178,6 +202,88 @@ Fetch the detail (scores, grade, summary) for an agentic evaluation run.
 
 **Inputs:**
 - `evaluation_run_id` (integer or numeric string, required).
+
+### Security
+
+#### `trustmodel_mcp_scan_server`
+
+Run AGT's MCP security scanner over a third-party MCP server's tool list to detect tool poisoning, typosquatting, hidden instructions, and rug-pull patterns. Static analysis — no LLM, no network, deterministic. Intended as a pre-registration check before an agent enables a third-party MCP server.
+
+**Inputs:**
+- `tools` (array, required) — The third-party server's tool definitions (`name`, `description`, optional input schema).
+
+**Returns:** A `ScanReport` with overall status (`ok` / `warning` / `blocked`), worst severity seen, and per-tool findings.
+
+### Shadow Discovery
+
+> Filesystem-touching. Returns a skip report unless `TRUSTMODEL_AGT_DISCOVERY_ENABLED=true`.
+
+#### `trustmodel_shadow_discovery_scan_paths`
+
+Walk local filesystem paths and detect agents in config files (`agentmesh.yaml`, `crewai.yaml`, `mcp.json`, `claude_desktop_config.json`, …), Dockerfiles/compose, and optionally source. Reconciles detections against a caller-supplied registry and returns the unregistered ones as **shadow agents** with AGT risk scoring + remediation. Static analysis only.
+
+**Inputs:**
+- `paths` (string[], required) — Local paths to scan.
+- `registry` (array, optional) — Known agents (`did`, `name`, `owner`, …) to reconcile against.
+
+#### `trustmodel_shadow_discovery_fingerprint_keys`
+
+Fingerprint a batch of provider API keys (OpenAI / Anthropic) by calling each provider's read-only models endpoint — no inference is run. A reachable key is flagged high-risk (possible credential exposure); a revoked key is informational. Key material is never logged or returned — only a `provider:****last4` fingerprint.
+
+**Inputs:**
+- `keys` (string[], required) — API keys to probe.
+
+### Red Team
+
+#### `trustmodel_redteam_evaluate`
+
+Run an adversarial red-team evaluation against an OpenAI-compatible target. Probes cover 8 attack categories aligned with OWASP LLM Top 10 (2025) — prompt injection, jailbreak, PII extraction, bias elicitation, hallucination triggers, and more.
+
+**Inputs:**
+- `model_name` (string, required) — e.g. `"openai/gpt-oss-20b:free"`.
+- `api_key` (string, required), `api_base_url` (string, required) — e.g. `"https://openrouter.ai/api/v1"`.
+- `categories` (string[], optional), `severities` (string[], optional), `metadata` (object, optional).
+
+**Returns:** The evaluation `id` — poll with `trustmodel_redteam_results`.
+
+#### `trustmodel_redteam_results`
+
+Get status, progress, overall score, per-category breakdown, and severity buckets for a red-team evaluation. Partial progress while running, full summary when completed.
+
+**Inputs:**
+- `evaluation_id` (integer or numeric string, required).
+
+#### `trustmodel_redteam_list_probes`
+
+Browse the red-team probe library (metadata only — payloads are not exposed). Filter by category, severity, or tag.
+
+**Inputs:**
+- `category` (string, optional), `severity` (string, optional), `tag` (string, optional).
+
+### Shadow AI
+
+#### `trustmodel_shadowai_scan`
+
+Kick off a Shadow AI Discovery scan against GitHub orgs/repos and (optionally) GCP projects. Detects unregistered AI by sniffing source for LLM SDK usage (15 libraries) and listing Vertex AI endpoints, Cloud Run services with AI env vars, and BigQuery ML models.
+
+**Inputs:**
+- `github_orgs` (string[], optional), `github_repos` (string[] of `owner/name`, optional), `gcp_projects` (string[], optional), `metadata` (object, optional).
+
+**Returns:** The scan `id` — poll with `trustmodel_shadowai_results`, page discoveries with `trustmodel_shadowai_events`.
+
+#### `trustmodel_shadowai_results`
+
+Get status, scan filter, total event count, and discoveries-by-system-type / by-source aggregates for a Shadow AI scan.
+
+**Inputs:**
+- `scan_id` (integer or numeric string, required).
+
+#### `trustmodel_shadowai_events`
+
+Page through individual discovery events — each is one discovered AI system with `system_type`, `discovered_via`, evidence, and a stable `system_id` fingerprint. Filter by `system_type` or `source`.
+
+**Inputs:**
+- `scan_id` (integer or numeric string, required), plus optional `system_type` / `source` filters and pagination.
 
 ## Example — streaming agent capture
 
@@ -327,6 +433,26 @@ Every AI agent making decisions — reviewing code, processing claims, screening
 Active trace sessions are written as append-only JSONL at `$TRUSTMODEL_TRACE_DIR/<trace_id>.jsonl` (default `~/.trustmodel-mcp/traces/`). Disk is the source of truth; the in-memory map is a cache that rehydrates lazily — so sessions survive an MCP server restart. On successful `trustmodel_trace_finalize` the local file is deleted (the trace is already in cloud storage).
 
 Sessions idle more than 30 minutes are auto-evicted. Maximum 100 concurrent sessions per server.
+
+## Dashboard
+
+Reports, evaluation history, and detailed PDF/HTML findings are available in the TrustModel dashboard at **[app.trustmodel.ai](https://app.trustmodel.ai)**.
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| Server exits immediately / `TRUSTMODEL_API_KEY` error | Set a valid key (`tm-{env}-{keyid}_{secret}`) in your client's `env` block. Get one at [app.trustmodel.ai](https://app.trustmodel.ai) → **Settings → API Keys**. |
+| `trustmodel_shadow_discovery_*` returns a skip report | Set `TRUSTMODEL_AGT_DISCOVERY_ENABLED=true` on the server. These tools touch the local filesystem and are off by default. |
+| `npx` can't find the package | Ensure Node ≥ 20.19 and run `npx -y @trustmodel/mcp-server` so the latest version is fetched. |
+| Tool not listed by the client | Restart the MCP client after editing its config; confirm the `command`/`args` match the examples above. |
+
+## TrustModel open-source
+
+This MCP server is part of the TrustModel OSS toolkit:
+
+- **CLI + SDK** — [`trustmodel`](https://github.com/karlmehta/trustmodel) on PyPI: local trust scoring, governance, and the cloud client. `pip install trustmodel`.
+- **MCP server (this repo)** — `@trustmodel/mcp-server` on npm: exposes TrustModel to any MCP client.
 
 ## License
 

@@ -1,8 +1,17 @@
 {
   "name": "@trustmodel/mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TrustModel MCP Server — trust evaluation for AI agents via Model Context Protocol",
   "type": "module",
+  "homepage": "https://trustmodel.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/karlmehta/trustmodel-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/karlmehta/trustmodel-mcp/issues"
+  },
+  "author": "Karl Mehta",
   "bin": {
     "trustmodel-mcp": "./dist/index.js"
   },
@@ -24,9 +33,14 @@
     "ai-safety",
     "trust",
     "guardrails",
-    "model-context-protocol"
+    "model-context-protocol",
+    "eval",
+    "red-team",
+    "governance",
+    "compliance",
+    "agent-evaluation",
+    "trust-score"
   ],
-  "author": "PDXLab",
   "license": "MIT",
   "dependencies": {
     "@microsoft/agent-governance-sdk": "^3.7.0",
