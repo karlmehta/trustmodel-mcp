@@ -60,9 +60,24 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `TRUSTMODEL_API_KEY` | Yes | — | Your TrustModel API key (`tm-{env}-{keyid}_{secret}`). |
+| `TRUSTMODEL_API_KEY` | No* | — | Your TrustModel API key (`tm-{env}-{keyid}_{secret}`). *Not needed for the local tools (`trustmodel_evaluate_local`, `trustmodel_govern`); required for calibrated cloud tools. |
 | `TRUSTMODEL_TRACE_DIR` | No | `~/.trustmodel-mcp/traces/` | Where streaming trace sessions are persisted as append-only JSONL. Sessions survive server restarts via rehydrate-on-read. |
-| `TRUSTMODEL_AGT_DISCOVERY_ENABLED` | No | `false` | Enables the filesystem-touching Shadow Discovery tools (`trustmodel_shadow_discovery_*`). When unset, those tools return a skip report. |
+| `TRUSTMODEL_PROFILE` | No | `default` | Tool profile. `default` exposes only the daily-driver tools; `security` / `advanced` / `all` expose every tool. See **Tool profiles**. |
+| `TRUSTMODEL_ADVANCED_TOOLS` | No | `false` | Set `true` to expose all tools regardless of `TRUSTMODEL_PROFILE`. |
+| `TRUSTMODEL_AGT_DISCOVERY_ENABLED` | No | `false` | Enables the filesystem-touching Shadow Discovery tools (`trustmodel_shadow_discovery_*`). When unset, those tools return a skip report. (Only relevant when the advanced profile is on.) |
+
+## Tool profiles
+
+To stay within the 5–8 tool best-practice budget (more tools degrade an agent's tool selection), the server exposes a small **default** set and keeps advanced tools opt-in.
+
+**Default profile (6 tools)** — the daily drivers:
+`trustmodel_evaluate_local` · `trustmodel_score` · `trustmodel_trace_start` · `trustmodel_trace_step` · `trustmodel_trace_finalize` · `trustmodel_govern`
+
+**Advanced** — set `TRUSTMODEL_PROFILE=security` (or `advanced` / `all`, or `TRUSTMODEL_ADVANCED_TOOLS=true`) to additionally expose: `trustmodel_evaluate` (cloud batch), `trustmodel_credits`, `trustmodel_upload_trace`, `trustmodel_evaluate_agent`, `trustmodel_score_agent`, `trustmodel_mcp_scan_server`, `trustmodel_shadow_discovery_*`, `trustmodel_redteam_*`, and `trustmodel_shadowai_*` — **20 tools total**.
+
+```bash
+claude mcp add trustmodel --env TRUSTMODEL_PROFILE=security -- npx -y @trustmodel/mcp-server
+```
 
 ## Tools
 

@@ -12,8 +12,10 @@ function getApiKey(): string {
   const key = process.env.TRUSTMODEL_API_KEY;
   if (!key) {
     throw new Error(
-      "TRUSTMODEL_API_KEY environment variable is not set. " +
-        "Obtain an API key at https://app.trustmodel.ai/settings/api-keys"
+      "This is a cloud tool and needs TRUSTMODEL_API_KEY (free — 5 credits / $500 — " +
+        "at https://app.trustmodel.ai/settings/api-keys) for calibrated cloud scoring. " +
+        "No key? Use the local, no-key tools instead: trustmodel_evaluate_local and " +
+        "trustmodel_govern."
     );
   }
   return key;
