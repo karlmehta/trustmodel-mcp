@@ -7,7 +7,12 @@
  * capabilities to any MCP-compatible AI agent (Claude Code, Cursor, Windsurf,
  * Workday agents, Eightfold AI Interviewer, etc.).
  *
- * Active tools (18):
+ * Active tools (20):
+ *   No-key local tier (no TRUSTMODEL_API_KEY required):
+ *     19. trustmodel_evaluate_local            — local 10-dimension TrustScore (heuristic judge)
+ *     20. trustmodel_govern                    — local policy-pack allow/block gate
+ *
+ *   Cloud tools (require TRUSTMODEL_API_KEY; degrade with a clear message if absent):
  *   1.  trustmodel_evaluate                    — POST /sdk/v1/evaluate/
  *   2.  trustmodel_score                       — GET  /sdk/v1/evaluations/{int}/
  *   3.  trustmodel_credits                     — GET  /sdk/v1/credits/
@@ -161,6 +166,20 @@ import {
   shadowaiEventsToolSchema,
   handleShadowaiEvents,
 } from "./tools/shadowai-events.js";
+
+import {
+  evalLocalToolName,
+  evalLocalToolDescription,
+  evalLocalToolSchema,
+  handleEvalLocal,
+} from "./tools/eval-local.js";
+
+import {
+  governToolName,
+  governToolDescription,
+  governToolSchema,
+  handleGovern,
+} from "./tools/govern.js";
 
 import { startEvictionTimer } from "./trace-store.js";
 
@@ -515,6 +534,42 @@ server.tool(
   async (args) => {
     try {
       const result = await handleShadowDiscoveryFingerprintKeys(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 19 — trustmodel_evaluate_local (no-key local scoring)
+server.tool(
+  evalLocalToolName,
+  evalLocalToolDescription,
+  evalLocalToolSchema,
+  async (args) => {
+    try {
+      const result = await handleEvalLocal(args);
+      return { content: [{ type: "text", text: formatResult(result) }] };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: formatError(err) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 20 — trustmodel_govern (no-key local policy gate)
+server.tool(
+  governToolName,
+  governToolDescription,
+  governToolSchema,
+  async (args) => {
+    try {
+      const result = await handleGovern(args);
       return { content: [{ type: "text", text: formatResult(result) }] };
     } catch (err) {
       return {
