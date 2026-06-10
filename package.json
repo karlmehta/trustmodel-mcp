@@ -1,5 +1,6 @@
 {
   "name": "@trustmodel/mcp-server",
+  "mcpName": "io.github.karlmehta/trustmodel-mcp",
   "version": "0.2.0",
   "description": "TrustModel MCP Server — trust evaluation for AI agents via Model Context Protocol",
   "type": "module",

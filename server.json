@@ -1,0 +1,35 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.karlmehta/trustmodel-mcp",
+  "description": "Score any AI for trust across 10 dimensions; evaluate, monitor & govern LLMs and agents.",
+  "repository": {
+    "url": "https://github.com/karlmehta/trustmodel-mcp",
+    "source": "github"
+  },
+  "version": "0.2.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@trustmodel/mcp-server",
+      "version": "0.2.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "TRUSTMODEL_API_KEY",
+          "description": "TrustModel API key (get one at https://trustmodel.ai)",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "TRUSTMODEL_BASE_URL",
+          "description": "Override the TrustModel API base URL (optional)",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
