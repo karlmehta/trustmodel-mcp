@@ -1,0 +1,71 @@
+name: Argus Review
+
+# Argus PR reviewer (TRUS-1647) — vendored under .argus/ (from karlmehta/argus).
+# Reviews across security, data-protection, correctness, concurrency, performance,
+# api-compat, tests, observability, dependencies; posts one severity-ranked review.
+# Approval is OFF by default (see .argus/config/argus.yml + docs/governance.md in
+# the Argus repo). To update skills/prompts, re-vendor from karlmehta/argus@v1.
+
+on:
+  # Command-only: NO pull_request auto-review trigger. Argus runs only when the
+  # owner explicitly invokes it (an '@argus' comment or a manual dispatch).
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
+
+concurrency:
+  group: argus-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Owner-gated: only karlmehta can invoke Argus (via '@argus' on a PR or a
+    # manual dispatch). No one else can trigger it, and it never runs on its
+    # own. Argus only reviews/approves — it does NOT merge (no gh-pr-merge tool,
+    # and the auto-merge-on-approval workflow is deleted). The owner merges.
+    if: >
+      (github.event_name == 'workflow_dispatch' &&
+        github.actor == 'karlmehta') ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        github.event.comment.user.login == 'karlmehta' &&
+        contains(github.event.comment.body, '@argus'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Argus
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are **Argus**, this repository's automated PR reviewer.
+            Review pull request #${{ github.event.pull_request.number || github.event.issue.number }}.
+
+            1. Read `.argus/prompts/system.md` (persona + hard rules — you never
+               approve merely to clear a gate).
+            2. Read `.argus/config/argus.yml` (enabled skills, severity gate, path
+               skip/strict rules, limits).
+            3. Load each enabled skill from `.argus/skills/<name>.md`.
+            4. Load repo memory: `.argus/memory/conventions.md`,
+               `.argus/memory/accepted-patterns.md`, relevant `.argus/memory/knowledge/*`.
+               Treat accepted-patterns as authoritative — do not re-flag them.
+            5. `gh pr diff ${{ github.event.pull_request.number || github.event.issue.number }}`;
+               read surrounding code before judging.
+            6. Apply each skill, reconcile with memory, dedupe, rank by severity,
+               and calibrate (cut low-confidence findings) per `.argus/prompts/review.md`.
+            7. Post ONE consolidated review per `.argus/prompts/verdict.md`:
+               request-changes on a confirmed blocker/major; else comment. Only
+               approve if `verdict.allow_approve: true` AND the change is genuinely
+               clean AND the author is not a bot.
+          claude_args: >-
+            --model claude-sonnet-4-6 --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(gh pr comment:*),Read,Grep,Glob"

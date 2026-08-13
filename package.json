@@ -2,7 +2,7 @@
   "name": "@trustmodel/mcp-server",
   "mcpName": "io.github.karlmehta/trustmodel-mcp",
   "version": "0.2.0",
-  "description": "TrustModel MCP Server — trust evaluation for AI agents via Model Context Protocol",
+  "description": "TrustModel MCP Server \u2014 trust evaluation for AI agents via Model Context Protocol",
   "type": "module",
   "homepage": "https://trustmodel.ai",
   "repository": {
@@ -26,7 +26,8 @@
     "verify:fingerprint": "npm run build && node scripts/verify-fingerprint.mjs",
     "verify:error-envelope": "npm run build && node scripts/verify-error-envelope.mjs",
     "regression:scanner": "npm run build && node regression/scanner.mjs",
-    "smoke": "npm run build && node e2e/smoke.mjs"
+    "smoke": "npm run build && node e2e/smoke.mjs",
+    "serve:http": "node dist/http-server.js"
   },
   "keywords": [
     "mcp",
