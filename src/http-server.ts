@@ -17,6 +17,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { buildMcpServer } from "./index.js";
 import { authContext } from "./auth-context.js";
+import { startEvictionTimer } from "./trace-store.js";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const MAX_BODY = 6 * 1024 * 1024; // 6 MB
@@ -25,6 +26,11 @@ const MAX_BODY = 6 * 1024 * 1024; // 6 MB
 const ALLOWED_ORIGINS = (process.env.MCP_ALLOWED_ORIGINS ?? "")
   .split(",")
   .map((o) => o.trim())
+  .filter(Boolean);
+// Allowed Host header values (e.g. "mcp.trustmodel.ai") for SDK DNS-rebinding protection.
+const ALLOWED_HOSTS = (process.env.MCP_ALLOWED_HOSTS ?? "")
+  .split(",")
+  .map((h) => h.trim())
   .filter(Boolean);
 
 // One transport per live session (Mcp-Session-Id → transport).
@@ -81,6 +87,15 @@ function readBody(req: IncomingMessage): Promise<unknown> {
 async function newSession(): Promise<StreamableHTTPServerTransport> {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
+    // Belt-and-suspenders to the Origin check above: the SDK's own Host/Origin
+    // validation, enabled when the deploy configures its allowlists.
+    ...(ALLOWED_HOSTS.length || ALLOWED_ORIGINS.length
+      ? {
+          enableDnsRebindingProtection: true,
+          allowedHosts: ALLOWED_HOSTS,
+          allowedOrigins: ALLOWED_ORIGINS,
+        }
+      : {}),
     onsessioninitialized: (sid: string) => {
       transports.set(sid, transport);
     },
@@ -108,7 +123,8 @@ const httpServer = createServer(async (req, res) => {
     }
 
     const apiKey = apiKeyFrom(req);
-    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    const rawSid = req.headers["mcp-session-id"];
+    const sessionId = Array.isArray(rawSid) ? rawSid[0] : rawSid; // dedupe header
     let transport = sessionId ? transports.get(sessionId) : undefined;
 
     if (req.method === "POST") {
@@ -137,6 +153,14 @@ const httpServer = createServer(async (req, res) => {
   }
 });
 
+// TTL-evict stale trace sessions (was previously only started by the stdio main()).
+startEvictionTimer();
+
 httpServer.listen(PORT, () => {
+  if (ALLOWED_ORIGINS.length === 0) {
+    console.error(
+      "WARNING: MCP_ALLOWED_ORIGINS is unset — all browser Origins allowed. Set it for a public deploy (DNS-rebinding protection)."
+    );
+  }
   console.error(`TrustModel hosted MCP listening on :${PORT}  (POST/GET/DELETE /mcp)`);
 });
