@@ -1,0 +1,52 @@
+# Argus config — aurora-gateway (Django 5.2 REST API). Vendored from karlmehta/argus.
+
+version: 1
+
+skills:
+  - security
+  - data-protection
+  - correctness
+  - concurrency
+  - performance
+  - api-compat
+  - tests
+  - observability
+  - dependencies
+
+gate: major
+
+verdict:
+  # ON (owner decision, Karl): Argus is the approving second reviewer. It submits
+  # an APPROVE review — which satisfies the branch-protection "1 approving review"
+  # gate (claude[bot] has write access) — ONLY when it finds zero blocker/major
+  # findings. Any confirmed blocker/major → REQUEST CHANGES (blocks merge). It
+  # never approves to merely clear a gate.
+  allow_approve: true
+  never_approve_authors:
+    - "dependabot[bot]"
+    - "renovate[bot]"
+    - "argus[bot]"
+
+paths:
+  skip:
+    - "**/*.lock"
+    - "**/migrations/**/*.py"      # api-compat still checks migrations at diff level
+    - "**/__generated__/**"
+    - "**/static/**"
+    - "poetry.lock"
+  # aurora-gateway's blast-radius surfaces — extra scrutiny, one severity higher.
+  strict:
+    - "accounts/**"
+    - "tenants/**"
+    - "billing/**"
+    - "payment*/**"
+    - "**/permissions*.py"
+    - "**/*auth*"
+    - "agentcert/**"
+    - "guardrails/**"
+
+limits:
+  max_inline_comments: 15
+  max_diff_lines: 4000
+
+model: ""

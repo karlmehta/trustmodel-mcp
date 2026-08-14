@@ -18,6 +18,23 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
+import { getRequestApiKey } from "./auth-context.js";
+
+/** Stable, non-reversible id for the current caller (per-request key in hosted mode,
+ *  env key in stdio mode, or "local" when unauthenticated). Never stores the raw key. */
+function currentOwner(): string {
+  const key = getRequestApiKey();
+  return key
+    ? crypto.createHash("sha256").update(key).digest("hex").slice(0, 16)
+    : "local";
+}
+
+/** True if `session` may be accessed by the current caller: unowned (legacy/stdio) traces
+ *  are open; owned traces require an exact owner match. */
+function ownedByCaller(session: TraceSession): boolean {
+  const owner = session.meta.owner_hash;
+  return !owner || owner === currentOwner();
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +52,10 @@ export type StepType =
 
 export interface TraceMeta {
   trace_id: string;
+  /** sha256(api-key)[:16] of the caller that created this trace, or "local" for the
+   *  stdio/single-tenant path. In the hosted multi-tenant server this binds a trace to
+   *  its owner so another tenant can't read/append/finalize it by guessing the id. */
+  owner_hash?: string;
   goal: string;
   name: string;
   agent_framework: string;
@@ -184,6 +205,7 @@ export function createSession(input: {
 
   const meta: TraceMeta = {
     trace_id: newTraceId(),
+    owner_hash: currentOwner(),
     goal: input.goal,
     name: input.name,
     agent_framework: input.agent_framework,
@@ -206,13 +228,14 @@ export function createSession(input: {
 
 export function getSession(traceId: string): TraceSession | null {
   const cached = cache.get(traceId);
-  if (cached) return cached;
+  if (cached) return ownedByCaller(cached) ? cached : null;
 
   const loaded = loadSessionFromDisk(traceId);
-  if (loaded) {
+  if (loaded && ownedByCaller(loaded)) {
     cache.set(traceId, loaded);
     return loaded;
   }
+  // Cross-tenant (or missing): report as not-found — don't reveal existence.
   return null;
 }
 
@@ -261,6 +284,9 @@ export function appendStep(
  * (the trace is safely in cloud storage at that point).
  */
 export function removeSession(traceId: string): void {
+  // Only the owner may delete. getSession() returns null for cross-tenant ids.
+  const existing = cache.get(traceId) ?? loadSessionFromDisk(traceId);
+  if (existing && !ownedByCaller(existing)) return;
   cache.delete(traceId);
   try {
     fs.unlinkSync(sessionPath(traceId));

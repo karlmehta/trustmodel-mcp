@@ -6,10 +6,13 @@
  *   TRUSTMODEL_BASE_URL — API base URL (default: https://api.trustmodel.ai)
  */
 
+import { getRequestApiKey } from "./auth-context.js";
+
 const BASE_URL = process.env.TRUSTMODEL_BASE_URL ?? "https://api.trustmodel.ai";
 
 function getApiKey(): string {
-  const key = process.env.TRUSTMODEL_API_KEY;
+  // Per-request key (hosted HTTP) → env (stdio). Never a shared global.
+  const key = getRequestApiKey();
   if (!key) {
     throw new Error(
       "This is a cloud tool and needs TRUSTMODEL_API_KEY (free — 5 credits / $500 — " +

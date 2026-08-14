@@ -40,6 +40,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { fileURLToPath } from "node:url";
 
 import {
   evaluateToolName,
@@ -215,7 +216,8 @@ function formatError(err: unknown): string {
 
 // ── Server setup ───────────────────────────────────────────────────────────────
 
-const mcpServer = new McpServer({
+export function buildMcpServer(): McpServer {
+  const mcpServer = new McpServer({
   name: "trustmodel",
   version: "0.1.0",
 });
@@ -618,19 +620,25 @@ server.tool(
   }
 );
 
+  return mcpServer;
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   startEvictionTimer();
+  const server = buildMcpServer();
   const transport = new StdioServerTransport();
-  await mcpServer.connect(transport);
-  const profileLabel = ADVANCED_ENABLED
-    ? `${TRUSTMODEL_PROFILE === "default" ? "advanced" : TRUSTMODEL_PROFILE} (all tools)`
-    : "default (daily-driver tools only; set TRUSTMODEL_PROFILE=security for all)";
-  console.error(`TrustModel MCP Server running on stdio — profile: ${profileLabel}`);
+  await server.connect(transport);
+  console.error("TrustModel MCP Server running on stdio.");
 }
 
-main().catch((err) => {
-  console.error("Fatal error starting TrustModel MCP Server:", err);
-  process.exit(1);
-});
+// Only launch stdio when this module is the entry point — importing it (e.g. from
+// the hosted HTTP server) must NOT start stdio.
+const isEntry = !!process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isEntry) {
+  main().catch((err) => {
+    console.error("Fatal error starting TrustModel MCP Server:", err);
+    process.exit(1);
+  });
+}
