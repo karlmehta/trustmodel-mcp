@@ -8,6 +8,9 @@
  *
  * Endpoints (MCP streamable-HTTP): POST /mcp (JSON-RPC), GET /mcp (SSE stream),
  * DELETE /mcp (end session). Health at GET /healthz. Session via `Mcp-Session-Id`.
+ * The bare host (`/`) and legacy `/sse` path (+ trailing-slash variants) are aliased
+ * to the same handler, so a client misconfigured with the base URL or the old SSE
+ * path connects instead of 404ing.
  *
  * Dependency-free (Node `http` + the MCP SDK). Run: `node dist/http-server.js` (PORT env). */
 
@@ -35,6 +38,11 @@ const ALLOWED_HOSTS = (process.env.MCP_ALLOWED_HOSTS ?? "")
 
 // One transport per live session (Mcp-Session-Id → transport).
 const transports = new Map<string, StreamableHTTPServerTransport>();
+
+// Paths served by the streamable-HTTP MCP handler. `/mcp` is canonical; the bare
+// host and the legacy `/sse` path are accepted so an old/misconfigured client URL
+// still connects (it 404'd before). Trailing slashes are tolerated.
+const MCP_PATHS = new Set(["/mcp", "/mcp/", "/", "/sse", "/sse/"]);
 
 function apiKeyFrom(req: IncomingMessage): string | undefined {
   const auth = req.headers["authorization"];
@@ -115,7 +123,7 @@ const httpServer = createServer(async (req, res) => {
     if (req.method === "GET" && url === "/healthz") {
       return sendJson(res, 200, { ok: true, service: "trustmodel-mcp" });
     }
-    if (url !== "/mcp") {
+    if (!MCP_PATHS.has(url)) {
       return sendJson(res, 404, { error: "not_found" });
     }
     if (!originAllowed(req)) {
